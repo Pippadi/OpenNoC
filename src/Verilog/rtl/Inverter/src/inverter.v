@@ -23,7 +23,6 @@ myFifo fifo (
   .m_axis_tvalid(o_valid),            // output wire m_axis_tvalid
   .m_axis_tready(i_ready),            // input wire m_axis_tready
   .m_axis_tdata(o_data),              // output wire [15 : 0] m_axis_tdata
-  .axis_data_count(),        // output wire [31 : 0] axis_data_count
   .axis_wr_data_count(),  // output wire [31 : 0] axis_wr_data_count
   .axis_rd_data_count()  // output wire [31 : 0] axis_rd_data_count
 );

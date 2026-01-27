@@ -31,4 +31,4 @@
 *.cmd
 *isim
 *.ini
-*xdb
+*xdbtags
