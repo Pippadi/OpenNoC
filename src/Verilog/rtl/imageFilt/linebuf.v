@@ -8,8 +8,8 @@ module linebuf
     input clk,
     input rst_n,
     input shift_en,
-    input [PIX_WIDTH-1:0] pin,
-    output wire [PIX_WIDTH-1:0] pout,
+    input [PIX_WIDTH-1:0] pix_in,
+    output wire [PIX_WIDTH-1:0] pix_out,
     output wire [PIX_WIDTH*KERN_WIDTH-1:0] section_out
 );
 
@@ -20,7 +20,7 @@ genvar i;
 generate
     for (i = 0; i < LINE_WIDTH; i = i + 1) begin
         if (i == 0)
-            assign pixbuf_dins[i] = 0;
+            assign pixbuf_dins[i] = pix_in;
         else
             assign pixbuf_dins[i] = pixbuf_douts[i-1];
 
@@ -36,5 +36,7 @@ generate
     for (i = KERN_WIDTH; i > 0; i = i - 1)
         assign section_out[(KERN_WIDTH-i-1)*PIX_WIDTH +: PIX_WIDTH] = pixbuf_douts[LINE_WIDTH - i];
 endgenerate
+
+assign pix_out = pixbuf_douts[LINE_WIDTH-1];
 
 endmodule
