@@ -29,11 +29,10 @@ wire [PIX_WIDTH-1:0] pixbuf_douts [0:LINE_WIDTH-1];
 genvar i;
 generate
     for (i = 0; i < LINE_WIDTH; i = i + 1) begin
-        if (i == 0) begin
-            pixbuf_dins[i] = latch_line_in ? line_in[0 +: PIX_WIDTH] : 0;
-        end else begin
-            pixbuf_dins[i] = latch_line_in ? line_in[i*PIX_WIDTH +: PIX_WIDTH] : pixbuf_douts[i-1];
-        end
+        if (i == 0)
+            assign pixbuf_dins[i] = latch_line_in ? line_in[0 +: PIX_WIDTH] : 0;
+        else
+            assign pixbuf_dins[i] = latch_line_in ? line_in[i*PIX_WIDTH +: PIX_WIDTH] : pixbuf_douts[i-1];
 
         pixbuf #(.PIX_WIDTH(PIX_WIDTH)) pb_inst (
             .clk(clk),
