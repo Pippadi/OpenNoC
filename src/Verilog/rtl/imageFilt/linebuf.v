@@ -33,8 +33,8 @@ generate
         );
     end
 
-    for (i = KERN_WIDTH; i > 0; i = i - 1)
-        assign section_out[(KERN_WIDTH-i-1)*PIX_WIDTH +: PIX_WIDTH] = pixbuf_douts[LINE_WIDTH - i];
+    for (i = KERN_WIDTH; i >= 0; i = i - 1)
+        assign section_out[(KERN_WIDTH-i)*PIX_WIDTH +: PIX_WIDTH] = pixbuf_douts[LINE_WIDTH - i];
 endgenerate
 
 assign pix_out = pixbuf_douts[LINE_WIDTH-1];

@@ -12,27 +12,34 @@ module conv_math
     input en,
     input [KERN_WIDTH*KERN_HEIGHT*PIX_WIDTH-1:0] kern,
     input [KERN_WIDTH*KERN_HEIGHT*PIX_WIDTH-1:0] pix_in,
-    output wire [2*PIX_WIDTH-1:0] pix_out,
+    output wire [PIX_WIDTH-1:0] pix_out,
     output reg pix_out_valid
 );
 
 integer i;
 reg [2*PIX_WIDTH-1:0] multData [0:KERN_WIDTH*KERN_HEIGHT-1];
-reg [2*PIX_WIDTH-1:0] sumDataInt;
 reg [2*PIX_WIDTH-1:0] sumData;
 reg multDataValid;
 
 always @ (posedge clk) begin
-    for (i=0; i < KERN_WIDTH*KERN_HEIGHT; i = i + 1)
-        multData[i] <= kern[i*PIX_WIDTH+:PIX_WIDTH] * pix_in[i*PIX_WIDTH+:PIX_WIDTH];
-    pix_out_valid <= en
+    if (~rst_n) begin
+        pix_out_valid <= 1'b0;
+        for (i=0; i < KERN_WIDTH*KERN_HEIGHT; i = i + 1)
+            multData[i] <= 0;
+    end else begin
+        if (en) begin
+            for (i=0; i < KERN_WIDTH*KERN_HEIGHT; i = i + 1)
+                multData[i] <= kern[i*PIX_WIDTH+:PIX_WIDTH] * pix_in[i*PIX_WIDTH+:PIX_WIDTH];
+        end
+        pix_out_valid <= en;
+    end
 end
 
 
 always @ (*) begin
-    sumDataInt = 0;
+    sumData = 0;
     for(i=0;i<KERN_WIDTH*KERN_HEIGHT;i=i+1)
-        sumDataInt = sumDataInt + multData[i];
+        sumData = sumData + multData[i];
 end
 
 assign pix_out = sumData/(KERN_WIDTH*KERN_HEIGHT);

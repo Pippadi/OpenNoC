@@ -22,7 +22,7 @@ module linebuf_parallel_load
     output wire buf_empty
 );
 
-reg [$clog2(LINE_WIDTH)-1:0] shifts_remaining;
+reg [$clog2(LINE_WIDTH):0] shifts_remaining;
 wire [PIX_WIDTH-1:0] pixbuf_dins [0:LINE_WIDTH-1];
 wire [PIX_WIDTH-1:0] pixbuf_douts [0:LINE_WIDTH-1];
 
@@ -43,8 +43,8 @@ generate
         );
     end
 
-    for (i = KERN_WIDTH; i > 0; i = i - 1)
-        assign section_out[(KERN_WIDTH-i-1)*PIX_WIDTH +: PIX_WIDTH] = pixbuf_douts[LINE_WIDTH - i];
+    for (i = KERN_WIDTH; i >= 0; i = i - 1)
+        assign section_out[(KERN_WIDTH-i)*PIX_WIDTH +: PIX_WIDTH] = pixbuf_douts[LINE_WIDTH - i];
 endgenerate
 
 always @ (posedge clk) begin

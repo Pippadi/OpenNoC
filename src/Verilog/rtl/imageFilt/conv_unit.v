@@ -11,7 +11,7 @@ module conv_unit
     input [KERN_WIDTH*KERN_HEIGHT*PIX_WIDTH-1:0] kern,
     input [LINE_WIDTH*PIX_WIDTH-1:0] line_in,
     input latch_line_in,
-    output wire [2*PIX_WIDTH-1:0] pix_out,
+    output wire [PIX_WIDTH-1:0] pix_out,
     output wire line_req,
     output wire pix_out_valid
 );
@@ -61,7 +61,7 @@ conv_math #(
     .PIX_WIDTH(PIX_WIDTH),
     .KERN_WIDTH(KERN_WIDTH),
     .KERN_HEIGHT(KERN_HEIGHT)
-) conv_math_inst (
+) ConvolutionMath (
     .clk(clk),
     .rst_n(rst_n),
     .en(shift_en),
