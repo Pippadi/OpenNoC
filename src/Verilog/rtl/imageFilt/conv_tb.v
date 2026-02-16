@@ -17,6 +17,8 @@ wire lineRequested;
 reg latchLine;
 integer receivedData = 0;
 
+reg [7:0] convolvedLine [0:511];
+
 reg [7:0] lineUnpacked [0:511];
 reg [512*8-1:0] linePacked;
 genvar j;
@@ -47,51 +49,58 @@ initial begin
     $dumpvars(0, tb);
     */
 
-    reset = 0;
-    sentSize = 0;
-    lineValid = 0;
-    #100;
-    reset = 1;
-    #100;
-    //file = $fopen("../../../../../lena512.bmp","rb");
-    //file1 = $fopen("../../../../../blurred_lena.bmp","wb");
-    file = $fopen("../../../../data/lena512.bmp","rb");       // Uncomment when
-    file1 = $fopen("../../../../data/blurred_lena.bmp","wb"); // using Icarus Verilog
-    for (i = 0; i < `headerSize; i = i + 1) begin
-        $fscanf(file, "%c", imgData);
-        $fwrite(file1, "%c", imgData);
-    end
+   reset = 0;
+   sentSize = 0;
+   lineValid = 0;
+   #100;
+   reset = 1;
+   #100;
+   //file = $fopen("../../../../../lena512.bmp","rb");
+   //file1 = $fopen("../../../../../blurred_lena.bmp","wb");
+   file = $fopen("../../../../data/lena512.bmp","rb");       // Uncomment when
+   file1 = $fopen("../../../../data/blurred_lena.bmp","wb"); // using Icarus Verilog
+   for (i = 0; i < `headerSize; i = i + 1) begin
+       $fscanf(file, "%c", imgData);
+       $fwrite(file1, "%c", imgData);
+   end
 
-    lineValid = 1'b0;
-    while (sentSize < `imageSize) begin
-        @(posedge clk);
-        if (lineRequested) begin
-            // Read a line of pixel data into lineUnpacked
-            $fread(lineUnpacked, file, 0, 512);
-            lineValid = 1'b1;
-            // Keep lineValid high until lineRequested goes low
-            while (lineRequested) begin
-                @(posedge clk);
-                lineValid = lineRequested;
-            end
-            sentSize = sentSize+512;
-        end
-    end
+   lineValid = 1'b0;
+   while (sentSize < `imageSize) begin
+       @(posedge clk);
+       if (lineRequested) begin
+           // Read a line of pixel data into lineUnpacked
+           $fread(lineUnpacked, file, 0, 512);
+           lineValid = 1'b1;
+           // Keep lineValid high until lineRequested goes low
+           while (lineRequested) begin
+               @(posedge clk);
+               lineValid = lineRequested;
+           end
+           sentSize = sentSize+512;
+       end
+   end
 
-    //@(posedge clk);
-    //lineValid = 1'b0;
-    $fclose(file);
-    while(1) begin
-        @(posedge clk);
-        imgData = 0;
-        lineValid = 1'b0;
-    end
+   //@(posedge clk);
+   //lineValid = 1'b0;
+   $fclose(file);
+   while(1) begin
+       @(posedge clk);
+       imgData = 0;
+       lineValid = 1'b0;
+   end
 end
 
+integer k;
 always @(posedge clk) begin
     if (outDataValid) begin
-        $fwrite(file1, "%c", outData);
         receivedData = receivedData + 1;
+        convolvedLine[receivedData % 512] = outData;
+        if (receivedData % 512 == 511) begin
+            $fwrite(file1, "%c", convolvedLine[0]);
+            for (k = 511; k >= 0; k = k - 1) begin
+                $fwrite(file1, "%c", convolvedLine[k]);
+            end
+        end
     end
 
     // -1 as sim stops at 39999
