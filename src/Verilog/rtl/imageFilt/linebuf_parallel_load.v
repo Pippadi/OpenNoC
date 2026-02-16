@@ -43,8 +43,9 @@ generate
         );
     end
 
-    for (i = KERN_WIDTH; i >= 0; i = i - 1)
+    for (i = KERN_WIDTH; i > 0; i = i - 1) begin
         assign section_out[(KERN_WIDTH-i)*PIX_WIDTH +: PIX_WIDTH] = pixbuf_douts[LINE_WIDTH - i];
+    end
 endgenerate
 
 always @ (posedge clk) begin

@@ -3,7 +3,7 @@
 `define headerSize 1080
 `define imageSize 512*512
 
-module tb();
+module conv_tb();
 
 reg clk;
 reg reset;
@@ -14,17 +14,17 @@ integer sentSize;
 wire [7:0] outData;
 wire outDataValid;
 wire lineRequested;
-reg latchLine;
 integer receivedData = 0;
 
 reg [7:0] convolvedLine [0:511];
 
 reg [7:0] lineUnpacked [0:511];
-reg [512*8-1:0] linePacked;
+wire [512*8-1:0] linePacked;
 genvar j;
 generate
-    for (j = 0; j < 512; j = j + 1)
+    for (j = 0; j < 512; j = j + 1) begin
         assign linePacked[j*8 +: 8] = lineUnpacked[j];
+    end
 endgenerate
 
 initial begin
@@ -43,7 +43,7 @@ end
 */
 
 initial begin
-    // Uncomment for waveform generation
+    // Uncomment for value change dump
     /*
     $dumpfile("conv_tb.vcd");
     $dumpvars(0, tb);
@@ -55,10 +55,10 @@ initial begin
    #100;
    reset = 1;
    #100;
-   //file = $fopen("../../../../../lena512.bmp","rb");
-   //file1 = $fopen("../../../../../blurred_lena.bmp","wb");
-   file = $fopen("../../../../data/lena512.bmp","rb");       // Uncomment when
-   file1 = $fopen("../../../../data/blurred_lena.bmp","wb"); // using Icarus Verilog
+   file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+   file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+   //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+   //file1 = $fopen("../../../data/blurred_lena.bmp","wb"); // using Icarus Verilog
    for (i = 0; i < `headerSize; i = i + 1) begin
        $fscanf(file, "%c", imgData);
        $fwrite(file1, "%c", imgData);
@@ -76,7 +76,7 @@ initial begin
                @(posedge clk);
                lineValid = lineRequested;
            end
-           sentSize = sentSize+512;
+           sentSize = sentSize + 512;
        end
    end
 
@@ -96,7 +96,6 @@ always @(posedge clk) begin
         receivedData = receivedData + 1;
         convolvedLine[receivedData % 512] = outData;
         if (receivedData % 512 == 511) begin
-            $fwrite(file1, "%c", convolvedLine[0]);
             for (k = 511; k >= 0; k = k - 1) begin
                 $fwrite(file1, "%c", convolvedLine[k]);
             end
@@ -120,7 +119,7 @@ conv_unit #(
     .rst_n(reset),
     .kern({8'b1, 8'b1, 8'b1,
     8'b1, 8'b1, 8'b1,
-    8'b1, 8'b1, 8'b1}), // Simple box blur kernel
+    8'b1, 8'b1, 8'b1}), // Box blur kernel
     .line_in(linePacked),
     .latch_line_in(lineValid),
     .pix_out(outData),
