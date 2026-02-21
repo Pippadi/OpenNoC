@@ -18,7 +18,7 @@ module conv_unit
     input [KERN_WIDTH*KERN_HEIGHT*PIX_WIDTH-1:0] kern,
     input [LINE_WIDTH*PIX_WIDTH-1:0] line_in,
     input latch_line_in,
-    output wire [PIX_WIDTH-1:0] pix_out,
+    output reg [PIX_WIDTH-1:0] pix_out,
     output wire line_req,
     output wire pix_out_valid
 );
@@ -26,6 +26,8 @@ module conv_unit
 wire shift_en;
 wire conv_en;
 wire [KERN_WIDTH*KERN_HEIGHT*PIX_WIDTH-1:0] frame_to_conv;
+wire conv_pix_out_valid;
+wire [PIX_WIDTH-1:0] conv_pix_out;
 wire top_linebuf_empty;
 wire [PIX_WIDTH-1:0] linebuf_pix_outs [0:KERN_HEIGHT-1];
 
@@ -34,13 +36,20 @@ assign line_req = top_linebuf_empty;
 reg [1:0] state;
 localparam IDLE = 0, CONV = 1, SHIFT = 2;
 
+assign pix_out_valid = (state == SHIFT); // Asserted for only one cycle
+
 always @ (posedge clk) begin
     if (~rst_n) begin
         state <= IDLE;
     end else begin
         case (state)
             IDLE: state <= top_linebuf_empty ? IDLE : CONV;
-            CONV: state <= pix_out_valid ? SHIFT : CONV;
+            CONV: begin
+                if (conv_pix_out_valid) begin
+                    state <= SHIFT;
+                    pix_out <= conv_pix_out;
+                end
+            end
             SHIFT: state <= IDLE;
         endcase
     end
@@ -92,8 +101,8 @@ conv_math #(
     .en(conv_en),
     .kern(kern),
     .img(frame_to_conv),
-    .pix_out(pix_out),
-    .pix_out_valid(pix_out_valid)
+    .pix_out(conv_pix_out),
+    .pix_out_valid(conv_pix_out_valid)
 );
 
 endmodule
