@@ -1,3 +1,10 @@
+`timescale 1ns / 1ps
+
+// conv_unit performs convolution on pixel data from line buffers.
+// `line_req` is asserted when the top line buffer is empty and ready to
+// accept new data. `latch_line_in` should be asserted until `line_req` is
+// deasserted. `pix_out` is the result of the convolution, and `pix_out_valid`
+// is asserted for one cycle when `pix_out` is valid.
 module conv_unit
 #(
     parameter PIX_WIDTH = 8,
@@ -17,12 +24,30 @@ module conv_unit
 );
 
 wire shift_en;
+wire conv_en;
 wire [KERN_WIDTH*KERN_HEIGHT*PIX_WIDTH-1:0] frame_to_conv;
 wire top_linebuf_empty;
 wire [PIX_WIDTH-1:0] linebuf_pix_outs [0:KERN_HEIGHT-1];
 
-assign shift_en = ~top_linebuf_empty;
 assign line_req = top_linebuf_empty;
+
+reg [1:0] state;
+localparam IDLE = 0, CONV = 1, SHIFT = 2;
+
+always @ (posedge clk) begin
+    if (~rst_n) begin
+        state <= IDLE;
+    end else begin
+        case (state)
+            IDLE: state <= top_linebuf_empty ? IDLE : CONV;
+            CONV: state <= pix_out_valid ? SHIFT : CONV;
+            SHIFT: state <= IDLE;
+        endcase
+    end
+end
+
+assign shift_en = (state == SHIFT);
+assign conv_en = (state == CONV);
 
 linebuf_parallel_load #(
     .PIX_WIDTH(PIX_WIDTH),
@@ -64,9 +89,9 @@ conv_math #(
 ) ConvolutionMath (
     .clk(clk),
     .rst_n(rst_n),
-    .en(shift_en),
+    .en(conv_en),
     .kern(kern),
-    .pix_in(frame_to_conv),
+    .img(frame_to_conv),
     .pix_out(pix_out),
     .pix_out_valid(pix_out_valid)
 );
