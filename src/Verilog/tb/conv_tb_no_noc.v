@@ -46,7 +46,7 @@ initial begin
     // Uncomment for value change dump
     /*
     $dumpfile("conv_tb.vcd");
-    $dumpvars(0, tb);
+    $dumpvars(0, conv_tb);
     */
 
    reset = 0;
@@ -58,7 +58,7 @@ initial begin
    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-   //file1 = $fopen("../../../data/blurred_lena.bmp","wb"); // using Icarus Verilog
+   //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
    for (i = 0; i < `headerSize; i = i + 1) begin
        $fscanf(file, "%c", imgData);
        $fwrite(file1, "%c", imgData);
