@@ -55,6 +55,7 @@ initial begin
    #100;
    reset = 1;
    #100;
+   //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
@@ -112,14 +113,15 @@ end
 conv_unit #(
     .PIX_WIDTH(8),
     .LINE_WIDTH(512),
+    .KERN_FRAC_BITS(6),
     .KERN_WIDTH(3),
     .KERN_HEIGHT(3)
 ) conv_unit_inst (
     .clk(clk),
     .rst_n(reset),
-    .kern({8'b1, 8'b1, 8'b1,
-    8'b1, 8'b1, 8'b1,
-    8'b1, 8'b1, 8'b1}), // Box blur kernel
+    .kern({7, 7, 7,
+    7, 7, 7,
+    7, 7, 7}), // Box blur kernel
     .line_in(linePacked),
     .latch_line_in(lineValid),
     .pix_out(outData),

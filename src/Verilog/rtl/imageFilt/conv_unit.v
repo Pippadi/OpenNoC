@@ -9,6 +9,7 @@ module conv_unit
 #(
     parameter PIX_WIDTH = 8,
     parameter LINE_WIDTH = 16,
+    parameter KERN_FRAC_BITS = 4,
     parameter KERN_WIDTH = 3,
     parameter KERN_HEIGHT = 3
 )
@@ -93,6 +94,7 @@ endgenerate
 
 conv_math #(
     .PIX_WIDTH(PIX_WIDTH),
+    .KERN_FRAC_BITS(KERN_FRAC_BITS),
     .KERN_WIDTH(KERN_WIDTH),
     .KERN_HEIGHT(KERN_HEIGHT)
 ) ConvolutionMath (

@@ -23,66 +23,10 @@ end
 
 endmodule
 
-// module conv_math #(
-//     parameter TILE_SIZE     = 3,
-//     parameter DIVISION_SIZE = 8
-// ) (
-//     input      [TILE_SIZE * TILE_SIZE * 8 - 1 : 0] kern, img,
-//     input                                          clk, start,    // calculation begins at posedge of "start"
-//     output reg                                     processing,    // this bit remains 1 while the calculation is in progress
-//     output     [15:0]                              pix_out
-// );
-
-//     integer i;
-
-//     reg       calc_start, mac_rst, pre_start;
-//     reg [7:0] op1, op2;
-
-//     mac #(
-//         .INP_SIZE(8),
-//         .OUT_SIZE(16)
-//     ) M (
-//         .clk(clk), .rst(mac_rst), .valid(calc_start),
-//         .op1(op1), .op2(op2),
-//         .aggregator(pix_out)
-//     );
-
-//     always @(posedge start) begin
-//         pre_start  <= 1'b1;
-//         mac_rst    <= 1'b1;
-//     end
-
-//     always @(negedge start) begin
-//         if (pre_start == 1'b1) begin
-//             pre_start  <= 1'b0;
-//             calc_start <= 1'b1;
-//             mac_rst    <= 1'b0;
-//             i <= 0;
-//         end
-//     end
-
-//     always @(posedge clk) begin
-//         if (calc_start) begin
-//             if (i >= TILE_SIZE * TILE_SIZE) begin
-//                 calc_start <= 1'b0;
-//                 processing <= 1'b0;
-//                 calc_start <= 1'b0;
-//             end
-//             else begin
-//                 processing <= 1'b1;
-//                 op1 <= kern[(i*8) +: 8];
-//                 op2 = img[(i*8) +: 8];
-//                 i <= i + 1;
-//             end
-//         end
-//     end
-
-// endmodule
-
-
 module conv_math
 #(
     parameter PIX_WIDTH = 8,
+    parameter KERN_FRAC_BITS = 4,
     parameter KERN_WIDTH = 3,
     parameter KERN_HEIGHT = 3
 )
@@ -100,14 +44,14 @@ integer i;
 
 wire mac_ops_valid = (state == PROCESSING) && (i <= (KERN_WIDTH*KERN_HEIGHT));
 wire mac_rst = (state == IDLE) | ~rst_n;
-wire [PIX_WIDTH-1:0] mac_out;
+wire [2*PIX_WIDTH-1:0] mac_out;
 assign pix_out_valid = (state == DONE);
 wire [PIX_WIDTH-1:0] op1 = kern[(i*PIX_WIDTH)+:PIX_WIDTH];
 wire [PIX_WIDTH-1:0] op2 = img[(i*PIX_WIDTH)+:PIX_WIDTH];
 
 mac #(
     .INP_SIZE(PIX_WIDTH),
-    .OUT_SIZE(PIX_WIDTH) // Make sure this is wider later
+    .OUT_SIZE(2*PIX_WIDTH)
 ) MAC_UNIT (
     .clk(clk),
     .rst(mac_rst),
@@ -134,7 +78,7 @@ always @(posedge clk) begin
                     i <= i + 1;
                 end else begin
                     state <= DONE;
-                    pix_out <= mac_out;
+                    pix_out <= mac_out >> KERN_FRAC_BITS; // Adjust for fixed-point scaling
                 end
             end
             DONE: state <= en ? DONE : IDLE;
