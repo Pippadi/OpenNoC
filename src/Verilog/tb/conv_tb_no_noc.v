@@ -119,9 +119,9 @@ conv_unit #(
 ) conv_unit_inst (
     .clk(clk),
     .rst_n(reset),
-    .kern({7, 7, 7,
-    7, 7, 7,
-    7, 7, 7}), // Box blur kernel
+    .kern({8'd7, 8'd7, 8'd7,
+    8'd7, 8'd7, 8'd7,
+    8'd7, 8'd7, 8'd7}), // Box blur kernel
     .line_in(linePacked),
     .latch_line_in(lineValid),
     .pix_out(outData),
