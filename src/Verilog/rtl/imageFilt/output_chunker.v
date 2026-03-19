@@ -39,7 +39,7 @@ always @ (posedge clk) begin
         chunk_out <= {CHUNK_WIDTH{1'b0}};
         chunk_out_valid <= 0;
     end else begin
-        if (pix_in_valid)
+        if (pix_in_valid) begin
             if (staging_pix_cnt == CHUNK_WIDTH-1) begin
                 chunk_out <= chunk_staging;
                 staging_pix_cnt <= 0;
