@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-`define BMP_HEADER_SIZE 1080
+`define BMP_HEADER_SIZE 1078
 `define IMG_WIDTH 512
 `define IMG_HEIGHT 512
 `define PIX_WIDTH 8
@@ -31,7 +31,7 @@ localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
 localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
 localparam NOC_WIDTH = 2*($clog2(`NOC_X) + $clog2(`NOC_Y)) + $clog2(LINE_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
-reg [`IMG_WIDTH*`PIX_WIDTH:0] img [0:`IMG_HEIGHT-1];
+reg [`IMG_WIDTH*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT-1];
 
 // Map from PE index to segment index
 // Most significant bit for idle, next bits for segment index, remaining bits for line index
@@ -44,7 +44,6 @@ initial begin
     forever #5 clk = ~clk;
 end
 
-/*
 // Timeout for infinite loop and short simulation runs when using dumpvars
 initial begin
     #100000;
@@ -52,7 +51,6 @@ initial begin
     $fclose(file1);
     $finish;
 end
-*/
 
 // segment_line extracts the appropriate line segment with halo pixels for the given segment index.
 // It handles edge cases for halo pixels by zero-padding when out of bounds.
@@ -77,6 +75,7 @@ wire [`CHUNK_WIDTH*`PIX_WIDTH-1:0] tx_chunk_out;
 wire [$clog2(LINE_WIDTH/`CHUNK_WIDTH)-1:0] tx_chunk_idx;
 wire tx_line_valid;
 wire tx_chunk_valid, tx_line_complete;
+wire [LINE_WIDTH*`PIX_WIDTH-1:0] current_segment_line = segment_line(img[pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]], next_seg);
 
 line_chunker #(
     .PIX_WIDTH(`PIX_WIDTH),
@@ -86,7 +85,7 @@ line_chunker #(
     .rst_n(rst_n),
     .clk(clk),
     .line_valid(tx_line_valid),
-    .line_in(segment_line(img[pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]], next_seg)),
+    .line_in(current_segment_line),
     .chunk_out_ready(tx_chunk_ready),
     .chunk_out(tx_chunk_out),
     .chunk_out_valid(tx_chunk_valid),
@@ -94,40 +93,40 @@ line_chunker #(
     .complete(tx_line_complete)
 );
 
+reg [7:0] aByte;
 reg [7:0] line_temp [0:`IMG_WIDTH-1];
 initial begin
     // Uncomment for value change dump
-    /*
     $dumpfile("conv_tb_noc.vcd");
     $dumpvars(0, conv_tb_noc);
-    $dumpvars(0, img[0]);
-    */
 
-    rst_n = 0;
-    #100;
-    rst_n = 1;
-    #100;
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
     end
 
-    $fread(img, file);
-    /*
+    // Have to do this, because $fread's count argument is too small to read all of it at once
     for (i = 0; i < `IMG_HEIGHT; i = i + 1) begin
-        $fread(line_temp, file, 0, `IMG_WIDTH-1);
+        $fread(line_temp, file, 0, `IMG_WIDTH);
+        //$display("%d", line_temp[511]);
         for (integer j = 0; j < `IMG_WIDTH; j = j + 1) begin
             img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
         end
+
     end
-    */
+
+    rst_n = 0;
+    #100;
+    rst_n = 1;
+    #100;
 
     while (1) begin
+        #5
         if (pe_idx_x == `NOC_X-1 && pe_idx_y == `NOC_Y-1 && pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
             // All segments sent and processed
             $fclose(file);
