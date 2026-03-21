@@ -25,7 +25,7 @@ localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
 localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for halo pixels
 localparam NOC_WIDTH = 2*($clog2(`NOC_X) + $clog2(`NOC_Y)) + $clog2(LINE_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
-reg [`IMG_WIDTH*`PIX_WIDTH:0] IMG [0:`IMG_HEIGHT-1];
+reg [`IMG_WIDTH*`PIX_WIDTH:0] img [0:`IMG_HEIGHT-1];
 
 // Map from PE index to segment index
 // Most significant bit for idle, next bits for segment index, remaining bits for line index
@@ -77,7 +77,7 @@ line_chunker #(
     .rst_n(rst_n),
     .clk(clk),
     .line_valid(tx_line_valid),
-    .line_in(segment_line(IMG[pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]], next_seg)),
+    .line_in(segment_line(img[pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]], next_seg)),
     .chunk_out_ready(tx_chunk_ready),
     .chunk_out(tx_chunk_out),
     .chunk_out_valid(tx_chunk_valid),
@@ -85,11 +85,13 @@ line_chunker #(
     .complete(tx_line_complete)
 );
 
+reg [7:0] line_temp [0:`IMG_WIDTH-1];
 initial begin
     // Uncomment for value change dump
     /*
-    $dumpfile("conv_tb.vcd");
-    $dumpvars(0, conv_tb);
+    $dumpfile("conv_tb_noc.vcd");
+    $dumpvars(0, conv_tb_noc);
+    $dumpvars(0, img[0]);
     */
 
     rst_n = 0;
@@ -106,9 +108,15 @@ initial begin
         $fwrite(file1, "%c", imgData);
     end
 
+    $fread(img, file);
+    /*
     for (i = 0; i < `IMG_HEIGHT; i = i + 1) begin
-        $fread(IMG[i], file, 0, 512);
+        $fread(line_temp, file, 0, `IMG_WIDTH-1);
+        for (integer j = 0; j < `IMG_WIDTH; j = j + 1) begin
+            img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
+        end
     end
+    */
 
     while (1) begin
         if (pe_idx_x == `NOC_X-1 && pe_idx_y == `NOC_Y-1 && pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
@@ -132,25 +140,26 @@ always @ (posedge clk) begin
         for (i = 0; i < `NOC_X*`NOC_Y; i = i + 1) begin
             pe_segment_map[pe_idx_x][pe_idx_y] <= 0;
         end
-
-    end
-    case (state)
-    IDLE: begin
-        if (pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
-            // Mark PE as busy, assign segment index, and preserve line index (incremented when line received by PE)
-            pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] <= {1'b1, next_seg, pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]};
-            state <= SEND;
-        end else begin
-            state <= IDLE;
-            if (pe_idx_y == `NOC_Y - 1) begin
-                pe_idx_x <= (pe_idx_x == `NOC_X-1) ? 0 : pe_idx_x + 1;
-                pe_idx_y <= pe_idx_x == `NOC_X-1; // Address (0, 0) is the scheduler
-            end else
-                pe_idx_y <= pe_idx_y + 1;
+    end else begin
+        case (state)
+        IDLE: begin
+            if (pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
+                // Mark PE as busy, assign segment index, and preserve line index (incremented when line received by PE)
+                pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] <= {1'b1, next_seg, pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]};
+                state <= SEND;
+            end else begin
+                state <= IDLE;
+                if (pe_idx_y == `NOC_Y - 1) begin
+                    pe_idx_x <= (pe_idx_x == `NOC_X-1) ? 0 : pe_idx_x + 1;
+                    pe_idx_y <= pe_idx_x == `NOC_X-1; // Address (0, 0) is the scheduler
+                end else
+                    pe_idx_y <= pe_idx_y + 1;
+            end
         end
+
+        SEND: state <= tx_line_complete ? IDLE : SEND;
+        endcase
     end
-    SEND: state <= tx_line_complete ? IDLE : SEND;
-    endcase
 end
 
 assign tx_line_valid = (state == SEND);
