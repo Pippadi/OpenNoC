@@ -5,11 +5,17 @@
 `define IMG_HEIGHT 512
 `define PIX_WIDTH 8
 
-`define CHUNK_WIDTH 6
+// Most widths are in pixels, unless specified.
+
+// Each PE processes a segment of the image. Each segment is fed line-by-line to the PEs.
+// These lines are sent chunk-by-chunk over the NoC. Because NoC width is the ultimate parameter we want
+// to optimize for, we parameterize the chunk width separately from the segment width.
+// LINE_WIDTH is calculated as SEG_WIDTH+2 below to account for halo pixels. Ensure that CHUNK_WIDTH divides LINE_WIDTH.
+`define CHUNK_WIDTH 6 // In pixels
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 1
-`define NOC_X 4
-`define NOC_Y 4
+`define NOC_X 4 // NoC X dimension (number of columns of PEs)
+`define NOC_Y 4 // NoC Y dimension (number of rows of PEs)
 
 module conv_tb_noc();
 
@@ -22,13 +28,14 @@ localparam SEG_WIDTH = `IMG_WIDTH / `SEG_CNT_X;
 localparam SEG_HEIGHT = `IMG_HEIGHT / `SEG_CNT_Y;
 localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
 
-localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for halo pixels
+localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
 localparam NOC_WIDTH = 2*($clog2(`NOC_X) + $clog2(`NOC_Y)) + $clog2(LINE_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
 reg [`IMG_WIDTH*`PIX_WIDTH:0] img [0:`IMG_HEIGHT-1];
 
 // Map from PE index to segment index
 // Most significant bit for idle, next bits for segment index, remaining bits for line index
+// Is there a better way to do this?
 localparam PE_MAP_WIDTH = 1 + $clog2(SEG_CNT_TOT) + $clog2(SEG_HEIGHT);
 reg [PE_MAP_WIDTH-1:0] pe_segment_map [0:$clog2(`NOC_X)-1][0:$clog2(`NOC_Y)-1];
 
@@ -47,6 +54,8 @@ initial begin
 end
 */
 
+// segment_line extracts the appropriate line segment with halo pixels for the given segment index.
+// It handles edge cases for halo pixels by zero-padding when out of bounds.
 function automatic [LINE_WIDTH*`PIX_WIDTH-1:0] segment_line(input [`IMG_WIDTH*`PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
     segment_line[(LINE_WIDTH-1)*`PIX_WIDTH-1 : `PIX_WIDTH] = img_line[SEG_WIDTH*`PIX_WIDTH*(seg_idx % `SEG_CNT_X)-1 +: SEG_WIDTH*`PIX_WIDTH]; // Main segment pixels
     if (seg_idx % SEG_CNT_TOT == 0)
@@ -128,21 +137,22 @@ initial begin
     end
 end
 
-reg [1:0] state;
+reg state;
 localparam IDLE = 1'b0, SEND = 1'b1;
 always @ (posedge clk) begin
     if (~rst_n) begin
         state <= IDLE;
         next_seg <= 0;
-        next_seg = 0;
-        pe_idx_x = 0;
-        pe_idx_y = 0;
+        next_seg <= 0;
+        pe_idx_x <= 0;
+        pe_idx_y <= 0;
         for (i = 0; i < `NOC_X*`NOC_Y; i = i + 1) begin
-            pe_segment_map[pe_idx_x][pe_idx_y] <= 0;
+            pe_segment_map[pe_idx_x][pe_idx_y] <= {PE_MAP_WIDTH{1'b0}};
         end
     end else begin
         case (state)
         IDLE: begin
+            // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
             if (pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
                 // Mark PE as busy, assign segment index, and preserve line index (incremented when line received by PE)
                 pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] <= {1'b1, next_seg, pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]};
@@ -157,6 +167,7 @@ always @ (posedge clk) begin
             end
         end
 
+        // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.
         SEND: state <= tx_line_complete ? IDLE : SEND;
         endcase
     end
