@@ -15,7 +15,7 @@
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 1
 `define NOC_X 4 // NoC X dimension (number of columns of PEs)
-`define NOC_Y 4 // NoC Y dimension (number of rows of PEs)
+`define NOC_Y 1 // NoC Y dimension (number of rows of PEs)
 
 module conv_tb_noc();
 
@@ -45,17 +45,19 @@ initial begin
 end
 
 // Timeout for infinite loop and short simulation runs when using dumpvars
+/*
 initial begin
     #100000;
     $fclose(file);
     $fclose(file1);
     $finish;
 end
+*/
 
 // segment_line extracts the appropriate line segment with halo pixels for the given segment index.
 // It handles edge cases for halo pixels by zero-padding when out of bounds.
 function automatic [LINE_WIDTH*`PIX_WIDTH-1:0] segment_line(input [`IMG_WIDTH*`PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
-    segment_line[(LINE_WIDTH-1)*`PIX_WIDTH-1 : `PIX_WIDTH] = img_line[SEG_WIDTH*`PIX_WIDTH*(seg_idx % `SEG_CNT_X)-1 +: SEG_WIDTH*`PIX_WIDTH]; // Main segment pixels
+    segment_line[`PIX_WIDTH +: `PIX_WIDTH*SEG_WIDTH] = img_line[SEG_WIDTH*`PIX_WIDTH*(seg_idx % `SEG_CNT_X) +: SEG_WIDTH*`PIX_WIDTH]; // Main segment pixels
     if (seg_idx % SEG_CNT_TOT == 0)
         segment_line[`PIX_WIDTH-1:0] = 0; // Right halo
     else
@@ -97,14 +99,16 @@ reg [7:0] aByte;
 reg [7:0] line_temp [0:`IMG_WIDTH-1];
 initial begin
     // Uncomment for value change dump
+    /*
     $dumpfile("conv_tb_noc.vcd");
     $dumpvars(0, conv_tb_noc);
+    */
 
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
@@ -125,6 +129,10 @@ initial begin
     rst_n = 1;
     #100;
 
+    for (i = 0; i < `NOC_X; i = i + 1)
+        for (integer j = 0; j < `NOC_Y; j = j + 1)
+            pe_segment_map[i][j] <= {PE_MAP_WIDTH{1'b0}};
+
     while (1) begin
         #5
         if (pe_idx_x == `NOC_X-1 && pe_idx_y == `NOC_Y-1 && pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
@@ -144,10 +152,7 @@ always @ (posedge clk) begin
         next_seg <= 0;
         next_seg <= 0;
         pe_idx_x <= 0;
-        pe_idx_y <= 0;
-        for (i = 0; i < `NOC_X*`NOC_Y; i = i + 1) begin
-            pe_segment_map[pe_idx_x][pe_idx_y] <= {PE_MAP_WIDTH{1'b0}};
-        end
+        pe_idx_y <= 1;
     end else begin
         case (state)
         IDLE: begin
@@ -174,7 +179,19 @@ end
 
 assign tx_line_valid = (state == SEND);
 
-always @ (posedge clk) tx_chunk_ready <= tx_chunk_valid;
+// For testing before connecting to the NoC
+reg tx_chunk_valid_prev;
+always @ (posedge clk) begin
+    if (~rst_n) begin
+        tx_chunk_valid_prev <= 0;
+        tx_chunk_ready <= 0;
+    end else begin
+        tx_chunk_valid_prev <= tx_chunk_valid;
+        tx_chunk_ready <= tx_chunk_valid & ~tx_chunk_valid_prev;
+    end
+end
+//
+
 wire [NOC_WIDTH-1:0] noc_out = (state == SEND) ? {4'b0, 4'b0, pe_idx_x, pe_idx_y, tx_chunk_idx, tx_chunk_out} : 0;
 wire noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
 

@@ -43,7 +43,7 @@ always @ (posedge clk) begin
                     chunk_idx <= chunk_idx + 1;
                 end
             end
-            COMPLETE: state <= line_valid ? SEND_CHUNK : IDLE;
+            COMPLETE: state <= line_valid ? COMPLETE : IDLE;
         endcase
     end
 end
