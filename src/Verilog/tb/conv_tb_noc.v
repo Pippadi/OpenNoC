@@ -14,7 +14,7 @@
 `define CHUNK_WIDTH 6 // In pixels
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 1
-`define NOC_X 1 // NoC X dimension (number of columns of PEs)
+`define NOC_X 2 // NoC X dimension (number of columns of PEs)
 `define NOC_Y 2 // NoC Y dimension (number of rows of PEs)
 
 module conv_tb_noc();
@@ -33,12 +33,17 @@ localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for the halo pixels on each side. A
 localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(LINE_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
 wire done;
-wire dispatch_out_ready;
-wire [NOC_BIT_WIDTH-1:0] dispatch_out_data;
-wire dispatch_out_valid;
 wire [$clog2(`IMG_HEIGHT)-1:0] img_line_idx;
+wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks received by the dispatcher
 
-conv_dispatcher #(
+wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
+wire [NOC_BIT_WIDTH*`NOC_X*`NOC_Y-1:0] noc_out_datas;
+wire [`NOC_X*`NOC_Y-1:0] noc_out_readies;
+wire [`NOC_X*`NOC_Y-1:0] noc_in_valids;
+wire [NOC_BIT_WIDTH*`NOC_X*`NOC_Y-1:0] noc_in_datas;
+wire [`NOC_X*`NOC_Y-1:0] noc_in_readies;
+
+conv_pe_insts #(
     .PIX_WIDTH(`PIX_WIDTH),
     .NOC_X(`NOC_X),
     .NOC_Y(`NOC_Y),
@@ -47,43 +52,43 @@ conv_dispatcher #(
     .CHUNK_WIDTH(`CHUNK_WIDTH),
     .SEG_CNT_X(`SEG_CNT_X),
     .SEG_CNT_Y(`SEG_CNT_Y)
-) Dispatcher (
+) PE_Insts (
     .rst_n(rst_n),
     .clk(clk),
-    .img_line_idx(img_line_idx),
+
+    .noc_out_valids(noc_out_valids),
+    .noc_out_datas(noc_out_datas),
+    .noc_out_readies(noc_out_readies),
+
+    .noc_in_valids(noc_in_valids),
+    .noc_in_datas(noc_in_datas),
+    .noc_in_readies(noc_in_readies),
+
+    // Dispatcher interfaces
     .img_line_in(img[img_line_idx]),
-    .noc_in_valid(),
-    .noc_in_data(),
-    .noc_in_ready(),
-    .noc_out_ready(dispatch_out_ready),
-    .noc_out_data(dispatch_out_data),
-    .noc_out_valid(dispatch_out_valid),
+    .img_line_idx(img_line_idx),
+    // For testing
+    .recvd_chunk_cnt(chunk_recvd_cnt),
     .done(done)
 );
 
-reg pe_out_ready;
-wire [NOC_BIT_WIDTH-1:0] pe_out_data;
-wire pe_out_valid;
+openNocTop #(
+    .X(`NOC_X),
+    .Y(`NOC_Y),
+    .data_width(NOC_BIT_WIDTH),
+    .pkt_no_field_size(0)
+) NoC (
+    .clk(clk),
+    .rstn(rst_n),
 
+    .r_data_pe(noc_in_datas),
+    .r_valid_pe(noc_in_valids),
+    .w_ready_pe(noc_in_readies),
 
-/* Remove when we have a reassembler (drops processed chunks for now) */
-integer recvd_chunk_cnt;
-reg pe_out_valid_prev;
-always @ (posedge clk) begin
-    if (~rst_n) begin
-        pe_out_valid_prev <= 0;
-        pe_out_ready <= 0;
-        recvd_chunk_cnt <= 0;
-    end else begin
-        pe_out_valid_prev <= pe_out_valid;
-        if (pe_out_valid & ~pe_out_valid_prev) begin
-            pe_out_ready <= 1;
-            recvd_chunk_cnt <= recvd_chunk_cnt + 1;
-        end else
-            pe_out_ready <= 0;
-    end
-end
-/********************************************/
+    .w_data_pe(noc_out_datas),
+    .w_valid_pe(noc_out_valids),
+    .r_ready_pe(noc_out_readies)
+);
 
 initial begin
     clk = 1'b0;
@@ -105,10 +110,10 @@ initial begin
     $dumpvars(0, conv_tb_noc);
 
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
@@ -129,7 +134,7 @@ initial begin
 
     while (1) begin
         @(posedge clk);
-        if (done) begin
+        if (done && recvd_chunk_cnt == SEG_CNT_X*SEG_CNT_Y*LINE_WIDTH/CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);

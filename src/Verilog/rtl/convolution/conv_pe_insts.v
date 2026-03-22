@@ -3,14 +3,18 @@
 module conv_pe_insts
 #(
     parameter PIX_WIDTH = 8,
+    parameter IMG_WIDTH = 512,
+    parameter IMG_HEIGHT = 512,
+
     parameter NOC_X = 4,
     parameter NOC_Y = 2,
-    parameter NOC_ADDnoc_out_X = 1,
-    parameter NOC_ADDnoc_out_Y = 1,
-    parameter NOC_REASSEMBLEnoc_out_ADDnoc_out_X = 0,
-    parameter NOC_REASSEMBLEnoc_out_ADDnoc_out_Y = 0,
-    parameter LINE_WIDTH = 16,
-    parameter CHUNK_WIDTH = 4,
+
+    parameter CHUNK_WIDTH = 6,
+    parameter SEG_CNT_X = 2,
+    parameter SEG_CNT_Y = 2,
+
+    localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X,
+    localparam LINE_WIDTH = SEG_WIDTH + 2, // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
 
     localparam CHUNK_CNT_WIDTH = $clog2(LINE_WIDTH/CHUNK_WIDTH),
     localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + CHUNK_CNT_WIDTH + CHUNK_WIDTH*PIX_WIDTH
@@ -31,7 +35,9 @@ module conv_pe_insts
     // Dispatcher interfaces
     input wire [PIX_WIDTH*IMG_WIDTH-1:0] img_line_in,
     output wire [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
-    output wire done // For testing
+    // For testing
+    output wire [31:0] recvd_chunk_cnt,
+    output wire done
 );
 
 genvar x, y;
@@ -59,19 +65,20 @@ for (x = 0; x < NOC_X; x = x + 1) begin
                 .noc_out_ready(noc_out_valids[x+NOC_X*y]),
                 .noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
                 .noc_out_valid(noc_in_readies[x+NOC_X*y]),
+                .recvd_chunk_cnt(recvd_chunk_cnt),
                 .done(done)
             );
         end else begin
-            convs #(
+            conv_pe #(
                 .PIX_WIDTH(PIX_WIDTH),
                 .LINE_WIDTH(LINE_WIDTH),
                 .CHUNK_WIDTH(CHUNK_WIDTH),
                 .NOC_X(NOC_X),
                 .NOC_Y(NOC_Y),
-                .NOC_ADDnoc_out_X(0),
-                .NOC_ADDnoc_out_Y(1),
-                .NOC_REASSEMBLEnoc_out_ADDnoc_out_X(0),
-                .NOC_REASSEMBLEnoc_out_ADDnoc_out_Y(0)
+                .NOC_ADDR_X(x),
+                .NOC_ADDR_Y(y),
+                .NOC_REASSEMBLER_ADDR_X(0),
+                .NOC_REASSEMBLER_ADDR_Y(0)
             ) ConvPE (
                 .clk(clk),
                 .rst_n(rst_n),

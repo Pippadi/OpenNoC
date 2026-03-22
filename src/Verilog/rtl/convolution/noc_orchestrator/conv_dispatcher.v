@@ -31,14 +31,16 @@ module conv_dispatcher
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
 
     input wire noc_in_valid,
-    input wire [NOC_DATA_WIDTH-1:0] noc_in_data,
+    input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
     output wire noc_in_ready,
 
     input noc_out_ready,
     output wire [NOC_BIT_WIDTH-1:0] noc_out_data,
     output wire noc_out_valid,
 
-    output reg done // For testing
+    // For testing
+    output integer recvd_chunk_cnt,
+    output reg done
 );
 
 integer i, j;
@@ -142,5 +144,25 @@ assign tx_line_valid = (state == SEND);
 assign noc_out_data = (state == SEND) ? {{$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y, tx_chunk_idx, tx_chunk_out} : {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
 assign tx_chunk_ready = noc_out_ready;
+
+
+/* Remove when we have a reassembler (drops processed chunks for now) */
+// TODO: Increment line number for PE
+reg noc_in_valid_prev;
+always @ (posedge clk) begin
+    if (~rst_n) begin
+        pe_out_valid_prev <= 0;
+        pe_out_ready <= 0;
+        recvd_chunk_cnt <= 0;
+    end else begin
+        noc_in_valid_prev <= noc_in_valid;
+        if (noc_in_valid & ~noc_in_valid_prev) begin
+            noc_in_ready <= 1;
+            recvd_chunk_cnt <= recvd_chunk_cnt + 1;
+        end else
+            noc_in_ready <= 0;
+    end
+end
+/********************************************/
 
 endmodule
