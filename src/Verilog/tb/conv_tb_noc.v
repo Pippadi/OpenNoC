@@ -36,6 +36,7 @@ wire done;
 wire [$clog2(`IMG_HEIGHT)-1:0] img_line_idx;
 wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks received by the dispatcher
 
+// Directions are from the perspective of the PE
 wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
 wire [NOC_BIT_WIDTH*`NOC_X*`NOC_Y-1:0] noc_out_datas;
 wire [`NOC_X*`NOC_Y-1:0] noc_out_readies;
@@ -81,13 +82,13 @@ openNocTop #(
     .clk(clk),
     .rstn(rst_n),
 
-    .r_data_pe(noc_in_datas),
-    .r_valid_pe(noc_in_valids),
-    .w_ready_pe(noc_in_readies),
+    .r_data_pe(noc_out_datas),
+    .r_valid_pe(noc_out_valids),
+    .r_ready_pe(noc_out_readies),
 
-    .w_data_pe(noc_out_datas),
-    .w_valid_pe(noc_out_valids),
-    .r_ready_pe(noc_out_readies)
+    .w_ready_pe(noc_in_readies),
+    .w_data_pe(noc_in_datas),
+    .w_valid_pe(noc_in_valids)
 );
 
 initial begin
@@ -134,7 +135,7 @@ initial begin
 
     while (1) begin
         @(posedge clk);
-        if (done && recvd_chunk_cnt == SEG_CNT_X*SEG_CNT_Y*LINE_WIDTH/CHUNK_WIDTH) begin
+        if (done && recvd_chunk_cnt == `SEG_CNT_X*`SEG_CNT_Y*LINE_WIDTH/`CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);

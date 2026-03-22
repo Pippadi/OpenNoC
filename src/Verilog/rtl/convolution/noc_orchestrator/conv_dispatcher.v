@@ -32,7 +32,7 @@ module conv_dispatcher
 
     input wire noc_in_valid,
     input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
-    output wire noc_in_ready,
+    output reg noc_in_ready,
 
     input noc_out_ready,
     output wire [NOC_BIT_WIDTH-1:0] noc_out_data,
@@ -151,8 +151,8 @@ assign tx_chunk_ready = noc_out_ready;
 reg noc_in_valid_prev;
 always @ (posedge clk) begin
     if (~rst_n) begin
-        pe_out_valid_prev <= 0;
-        pe_out_ready <= 0;
+        noc_in_valid_prev <= 0;
+        noc_in_ready <= 0;
         recvd_chunk_cnt <= 0;
     end else begin
         noc_in_valid_prev <= noc_in_valid;

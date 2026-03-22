@@ -22,12 +22,21 @@ genvar i;
 generate
     wire [PIX_WIDTH-1:0] chunk_staging_douts [0:CHUNK_WIDTH-1];
 
-    for (i = 0; i < CHUNK_WIDTH; i = i + 1) begin
+    // Doing it this way gets rid of an array out-of-bounds warning
+    pixbuf #(.PIX_WIDTH(PIX_WIDTH)) PixZero (
+        .rst_n(rst_n),
+        .clk(clk),
+        .en(pix_in_valid),
+        .din(pix_in),
+        .dout(chunk_staging_douts[0])
+    );
+
+    for (i = 1; i < CHUNK_WIDTH; i = i + 1) begin
         pixbuf #(.PIX_WIDTH(PIX_WIDTH)) Pix (
             .rst_n(rst_n),
             .clk(clk),
             .en(pix_in_valid),
-            .din(i == 0 ? pix_in : chunk_staging_douts[i-1]),
+            .din(chunk_staging_douts[i-1]),
             .dout(chunk_staging_douts[i])
         );
     end

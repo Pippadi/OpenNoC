@@ -5,8 +5,8 @@ module conv_pe
     parameter PIX_WIDTH = 8,
     parameter NOC_X = 4,
     parameter NOC_Y = 2,
-    parameter NOC_ADDR_X = 1,
-    parameter NOC_ADDR_Y = 1,
+    parameter NOC_ADDR_X = 2'd1,
+    parameter NOC_ADDR_Y = 1'd1,
     parameter NOC_REASSEMBLER_ADDR_X = 0,
     parameter NOC_REASSEMBLER_ADDR_Y = 0,
     parameter LINE_WIDTH = 16,
@@ -39,7 +39,7 @@ reg chunkbuf_line_clear;
 wire chunkbuf_line_valid;
 reg chunkbuf_chunk_avail;
 
-wire [CHUNK_CNT_WIDTH-1:0] chunk_idx_in = noc_in_data[2*(NOC_ADDR_X_WIDTH+NOC_ADDR_Y_WIDTH)-1 -: CHUNK_CNT_WIDTH];
+wire [CHUNK_CNT_WIDTH-1:0] chunk_idx_in = noc_in_data[2*((NOC_X)+(NOC_Y))-1 -: CHUNK_CNT_WIDTH];
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_in_data[0 +: CHUNK_WIDTH*PIX_WIDTH];
 
 assign noc_in_ready = chunkbuf_chunk_avail;
@@ -135,7 +135,7 @@ output_chunker #(
 );
 
 // Source X, Source Y, Dest X, Dest Y, Chunk index, Pixel data
-assign noc_out_data = {NOC_ADDR_X, NOC_ADDR_Y, NOC_REASSEMBLER_ADDR_X, NOC_REASSEMBLER_ADDR_Y, output_chunk_ctr, output_chunk};
+assign noc_out_data = {NOC_ADDR_X[$clog2(NOC_X)-1:0], NOC_ADDR_Y[$clog2(NOC_Y)-1:0], NOC_REASSEMBLER_ADDR_X[$clog2(NOC_X)-1:0], NOC_REASSEMBLER_ADDR_Y[$clog2(NOC_Y)-1:0], output_chunk_ctr, output_chunk};
 
 always @ (posedge clk) begin
     if (~rst_n)

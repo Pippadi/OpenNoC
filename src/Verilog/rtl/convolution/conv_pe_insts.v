@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 
+// NoC directions are from the perspective of the PE
 module conv_pe_insts
 #(
     parameter PIX_WIDTH = 8,
