@@ -60,12 +60,15 @@ for (x = 0; x < NOC_X; x = x + 1) begin
                 .clk(clk),
                 .img_line_idx(img_line_idx),
                 .img_line_in(img_line_in),
+
                 .noc_in_valid(noc_in_valids[x+NOC_X*y]),
                 .noc_in_data(noc_in_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-                .noc_in_ready(noc_out_readies[x+NOC_X*y]),
-                .noc_out_ready(noc_out_valids[x+NOC_X*y]),
+                .noc_in_ready(noc_in_readies[x+NOC_X*y]),
+
+                .noc_out_valid(noc_out_valids[x+NOC_X*y]),
                 .noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-                .noc_out_valid(noc_in_readies[x+NOC_X*y]),
+                .noc_out_ready(noc_out_readies[x+NOC_X*y]),
+
                 .recvd_chunk_cnt(recvd_chunk_cnt),
                 .done(done)
             );
@@ -83,12 +86,14 @@ for (x = 0; x < NOC_X; x = x + 1) begin
             ) ConvPE (
                 .clk(clk),
                 .rst_n(rst_n),
+
                 .noc_in_data(noc_in_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-    			.noc_in_ready(noc_out_readies[x+NOC_X*y]),
-    			.noc_in_valid(noc_in_valids[x+NOC_X*y]),
+                .noc_in_valid(noc_in_valids[x+NOC_X*y]),
+    			.noc_in_ready(noc_in_readies[x+NOC_X*y]),
+
     			.noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
     			.noc_out_valid(noc_out_valids[x+NOC_X*y]),
-    			.noc_out_ready(noc_in_readies[x+NOC_X*y])
+    			.noc_out_ready(noc_out_readies[x+NOC_X*y])
             );
         end
 	end

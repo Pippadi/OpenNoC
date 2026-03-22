@@ -69,7 +69,7 @@ conv_pe_insts #(
     .img_line_in(img[img_line_idx]),
     .img_line_idx(img_line_idx),
     // For testing
-    .recvd_chunk_cnt(chunk_recvd_cnt),
+    .recvd_chunk_cnt(recvd_chunk_cnt),
     .done(done)
 );
 
@@ -77,6 +77,7 @@ openNocTop #(
     .X(`NOC_X),
     .Y(`NOC_Y),
     .data_width(NOC_BIT_WIDTH),
+    .if_width(NOC_BIT_WIDTH*`NOC_X*`NOC_Y),
     .pkt_no_field_size(0)
 ) NoC (
     .clk(clk),
