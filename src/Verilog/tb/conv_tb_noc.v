@@ -14,7 +14,7 @@
 `define CHUNK_WIDTH 6 // In pixels
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 1
-`define NOC_X 4 // NoC X dimension (number of columns of PEs)
+`define NOC_X 1 // NoC X dimension (number of columns of PEs)
 `define NOC_Y 2 // NoC Y dimension (number of rows of PEs)
 
 module conv_tb_noc();
@@ -33,9 +33,9 @@ localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for the halo pixels on each side. A
 localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(LINE_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
 wire done;
-reg noc_out_ready;
-wire [NOC_BIT_WIDTH-1:0] noc_out_data;
-wire noc_out_valid;
+wire dispatch_out_ready;
+wire [NOC_BIT_WIDTH-1:0] dispatch_out_data;
+wire dispatch_out_valid;
 wire [$clog2(`IMG_HEIGHT)-1:0] img_line_idx;
 
 conv_dispatcher #(
@@ -52,11 +52,38 @@ conv_dispatcher #(
     .clk(clk),
     .img_line_idx(img_line_idx),
     .img_line_in(img[img_line_idx]),
-    .noc_out_ready(noc_out_ready),
-    .noc_out_data(noc_out_data),
-    .noc_out_valid(noc_out_valid),
+    .noc_in_valid(),
+    .noc_in_data(),
+    .noc_in_ready(),
+    .noc_out_ready(dispatch_out_ready),
+    .noc_out_data(dispatch_out_data),
+    .noc_out_valid(dispatch_out_valid),
     .done(done)
 );
+
+reg pe_out_ready;
+wire [NOC_BIT_WIDTH-1:0] pe_out_data;
+wire pe_out_valid;
+
+
+/* Remove when we have a reassembler (drops processed chunks for now) */
+integer recvd_chunk_cnt;
+reg pe_out_valid_prev;
+always @ (posedge clk) begin
+    if (~rst_n) begin
+        pe_out_valid_prev <= 0;
+        pe_out_ready <= 0;
+        recvd_chunk_cnt <= 0;
+    end else begin
+        pe_out_valid_prev <= pe_out_valid;
+        if (pe_out_valid & ~pe_out_valid_prev) begin
+            pe_out_ready <= 1;
+            recvd_chunk_cnt <= recvd_chunk_cnt + 1;
+        end else
+            pe_out_ready <= 0;
+    end
+end
+/********************************************/
 
 initial begin
     clk = 1'b0;
@@ -93,7 +120,6 @@ initial begin
         for (j = 0; j < `IMG_WIDTH; j = j + 1) begin
             img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
         end
-
     end
 
     rst_n = 0;
@@ -111,19 +137,5 @@ initial begin
         end
     end
 end
-
-/* For testing before connecting to the NoC */
-reg noc_out_valid_prev;
-always @ (posedge clk) begin
-    if (~rst_n) begin
-        noc_out_valid_prev <= 0;
-        noc_out_ready <= 0;
-    end else begin
-        noc_out_valid_prev <= noc_out_valid;
-        noc_out_ready <= noc_out_valid & ~noc_out_valid_prev;
-    end
-end
-/********************************************/
-
 
 endmodule

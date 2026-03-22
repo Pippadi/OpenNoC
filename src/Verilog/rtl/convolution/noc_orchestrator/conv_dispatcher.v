@@ -14,7 +14,7 @@ module conv_dispatcher
     parameter IMG_HEIGHT = 512,
     parameter CHUNK_WIDTH = 6,
     parameter SEG_CNT_X = 2,
-    parameter SEG_CNT_Y = 1,
+    parameter SEG_CNT_Y = 2,
 
     localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X,
     localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y,
@@ -29,6 +29,10 @@ module conv_dispatcher
 
     output wire [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
+
+    input wire noc_in_valid,
+    input wire [NOC_DATA_WIDTH-1:0] noc_in_data,
+    output wire noc_in_ready,
 
     input noc_out_ready,
     output wire [NOC_BIT_WIDTH-1:0] noc_out_data,

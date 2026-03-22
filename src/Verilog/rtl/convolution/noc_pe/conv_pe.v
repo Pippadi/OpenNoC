@@ -3,27 +3,29 @@
 module conv_pe
 #(
     parameter PIX_WIDTH = 8,
-    parameter NOC_REASSEMBLER_ADDR_X = 2,
-    parameter NOC_REASSEMBLER_ADDR_Y = 2,
+    parameter NOC_X = 4,
+    parameter NOC_Y = 2,
     parameter NOC_ADDR_X = 1,
     parameter NOC_ADDR_Y = 1,
-    parameter NOC_ADDR_X_WIDTH = 4,
-    parameter NOC_ADDR_Y_WIDTH = 4,
+    parameter NOC_REASSEMBLER_ADDR_X = 0,
+    parameter NOC_REASSEMBLER_ADDR_Y = 0,
     parameter LINE_WIDTH = 16,
     parameter CHUNK_WIDTH = 4,
 
     localparam CHUNK_CNT_WIDTH = $clog2(LINE_WIDTH/CHUNK_WIDTH),
-    localparam NOC_DATA_WIDTH = 2*(NOC_ADDR_X_WIDTH+NOC_ADDR_Y_WIDTH) + CHUNK_CNT_WIDTH + CHUNK_WIDTH*PIX_WIDTH
+    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + CHUNK_CNT_WIDTH + CHUNK_WIDTH*PIX_WIDTH
 )
 (
     input wire clk,
     input wire rst_n,
-    input wire noc_data_in_valid,
-    input wire noc_data_out_ready,
-    input wire [NOC_DATA_WIDTH-1:0] noc_data_in,
-    output wire [NOC_DATA_WIDTH-1:0] noc_data_out,
-    output wire noc_data_out_valid,
-    output wire noc_data_ready
+
+    input wire noc_in_valid,
+    input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
+    output wire noc_in_ready,
+
+    input wire noc_out_ready,
+    output wire [NOC_BIT_WIDTH-1:0] noc_out_data,
+    output wire noc_out_valid
 );
 
 
@@ -37,10 +39,10 @@ reg chunkbuf_line_clear;
 wire chunkbuf_line_valid;
 reg chunkbuf_chunk_avail;
 
-wire [CHUNK_CNT_WIDTH-1:0] chunk_idx_in = noc_data_in[2*(NOC_ADDR_X_WIDTH+NOC_ADDR_Y_WIDTH)-1 -: CHUNK_CNT_WIDTH];
-wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_data_in[0 +: CHUNK_WIDTH*PIX_WIDTH];
+wire [CHUNK_CNT_WIDTH-1:0] chunk_idx_in = noc_in_data[2*(NOC_ADDR_X_WIDTH+NOC_ADDR_Y_WIDTH)-1 -: CHUNK_CNT_WIDTH];
+wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_in_data[0 +: CHUNK_WIDTH*PIX_WIDTH];
 
-assign noc_data_ready = chunkbuf_chunk_avail;
+assign noc_in_ready = chunkbuf_chunk_avail;
 
 line_chunk_buffer #(
     .PIX_WIDTH(PIX_WIDTH),
@@ -93,7 +95,7 @@ always @(posedge clk or negedge rst_n) begin
             S_IDLE: begin
                 // Wait for conv unit request and a valid line from the chunk buffer
                 chunkbuf_line_clear <= 1'b0;
-                chunkbuf_chunk_avail <= noc_data_in_valid;
+                chunkbuf_chunk_avail <= noc_in_valid;
                 if (conv_line_req && chunkbuf_line_valid) begin
                     // Pulse latch for one cycle to load the line into the convolution unit
                     conv_latch_line <= 1'b1;
@@ -127,19 +129,19 @@ output_chunker #(
     .clk(clk),
     .pix_in_valid(conv_pix_valid),
     .pix_in(conv_pix),
-    .clear_chunk(noc_data_out_ready),
+    .clear_chunk(noc_out_ready),
     .chunk_out(output_chunk),
-    .chunk_out_valid(noc_data_out_valid)
+    .chunk_out_valid(noc_out_valid)
 );
 
 // Source X, Source Y, Dest X, Dest Y, Chunk index, Pixel data
-assign noc_data_out = {NOC_ADDR_X, NOC_ADDR_Y, NOC_REASSEMBLER_ADDR_X, NOC_REASSEMBLER_ADDR_Y, output_chunk_ctr, output_chunk};
+assign noc_out_data = {NOC_ADDR_X, NOC_ADDR_Y, NOC_REASSEMBLER_ADDR_X, NOC_REASSEMBLER_ADDR_Y, output_chunk_ctr, output_chunk};
 
 always @ (posedge clk) begin
     if (~rst_n)
         output_chunk_ctr <= LINE_WIDTH/CHUNK_WIDTH-1;
     else begin
-        if (noc_data_out_valid & noc_data_out_ready) // Decrement only when chunk has been accepted by the NoC
+        if (noc_out_valid & noc_out_ready) // Decrement only when chunk has been accepted by the NoC
             output_chunk_ctr <= (output_chunk_ctr == 0) ? LINE_WIDTH/CHUNK_WIDTH-1 : output_chunk_ctr-1;
     end
 end
