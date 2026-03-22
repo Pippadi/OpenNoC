@@ -113,10 +113,10 @@ initial begin
     $dumpvars(0, conv_tb_noc);
 
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
