@@ -32,7 +32,7 @@ module conv_dispatcher
 
     input wire noc_in_valid,
     input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
-    output reg noc_in_ready,
+    output wire noc_in_ready,
 
     input noc_out_ready,
     output wire [NOC_BIT_WIDTH-1:0] noc_out_data,
@@ -99,8 +99,8 @@ reg state;
 localparam IDLE = 1'b0, SEND = 1'b1;
 always @ (posedge clk) begin
     if (~rst_n) begin
+        done <= 0;
         state <= IDLE;
-        next_seg <= 0;
         next_seg <= 0;
         pe_idx_x <= 0;
         pe_idx_y <= 1;
@@ -110,7 +110,7 @@ always @ (posedge clk) begin
 
     end else begin
         case (state)
-        IDLE: begin
+        IDLE: if (~done) begin
             // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
             $display("PE %d, %d: %b", pe_idx_x, pe_idx_y, pe_segment_map[pe_idx_x][pe_idx_y]);
             if (pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
@@ -141,26 +141,21 @@ end
 
 assign tx_line_valid = (state == SEND);
 
-assign noc_out_data = (state == SEND) ? {{$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y, tx_chunk_idx, tx_chunk_out} : {NOC_BIT_WIDTH{1'b0}};
+// Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
+assign noc_out_data = (state == SEND) ? {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y} : {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
 assign tx_chunk_ready = noc_out_ready;
 
 
 /* Remove when we have a reassembler (drops processed chunks for now) */
 // TODO: Increment line number for PE
-reg noc_in_valid_prev;
+assign noc_in_ready = 1;
 always @ (posedge clk) begin
     if (~rst_n) begin
-        noc_in_valid_prev <= 0;
-        noc_in_ready <= 0;
         recvd_chunk_cnt <= 0;
     end else begin
-        noc_in_valid_prev <= noc_in_valid;
-        if (noc_in_valid & ~noc_in_valid_prev) begin
-            noc_in_ready <= 1;
+        if (noc_in_valid)
             recvd_chunk_cnt <= recvd_chunk_cnt + 1;
-        end else
-            noc_in_ready <= 0;
     end
 end
 /********************************************/

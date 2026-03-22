@@ -39,10 +39,8 @@ reg chunkbuf_line_clear;
 wire chunkbuf_line_valid;
 reg chunkbuf_chunk_avail;
 
-wire [CHUNK_CNT_WIDTH-1:0] chunk_idx_in = noc_in_data[2*((NOC_X)+(NOC_Y))-1 -: CHUNK_CNT_WIDTH];
-wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_in_data[0 +: CHUNK_WIDTH*PIX_WIDTH];
-
-assign noc_in_ready = chunkbuf_chunk_avail;
+wire [CHUNK_CNT_WIDTH-1:0] chunk_idx_in = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y)) +: CHUNK_CNT_WIDTH];
+wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_in_data[NOC_BIT_WIDTH-1 -: CHUNK_WIDTH*PIX_WIDTH];
 
 line_chunk_buffer #(
     .PIX_WIDTH(PIX_WIDTH),
@@ -134,8 +132,9 @@ output_chunker #(
     .chunk_out_valid(noc_out_valid)
 );
 
-// Source X, Source Y, Dest X, Dest Y, Chunk index, Pixel data
-assign noc_out_data = {NOC_ADDR_X[$clog2(NOC_X)-1:0], NOC_ADDR_Y[$clog2(NOC_Y)-1:0], NOC_REASSEMBLER_ADDR_X[$clog2(NOC_X)-1:0], NOC_REASSEMBLER_ADDR_Y[$clog2(NOC_Y)-1:0], output_chunk_ctr, output_chunk};
+// Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
+assign noc_out_data = {output_chunk, output_chunk_ctr, NOC_ADDR_X[$clog2(NOC_X)-1:0], NOC_ADDR_Y[$clog2(NOC_Y)-1:0], NOC_REASSEMBLER_ADDR_X[$clog2(NOC_X)-1:0], NOC_REASSEMBLER_ADDR_Y[$clog2(NOC_Y)-1:0]};
+assign noc_in_ready = state == S_IDLE;
 
 always @ (posedge clk) begin
     if (~rst_n)

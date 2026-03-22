@@ -43,8 +43,8 @@ module conv_pe_insts
 
 genvar x, y;
 generate
-for (x = 0; x < NOC_X; x = x + 1) begin
-    for (y = 0; y < NOC_Y; y = y + 1) begin
+for (x = 0; x < NOC_X; x = x + 1) begin: xs
+    for (y = 0; y < NOC_Y; y = y + 1) begin: ys
         if(x==0 & y==0) begin
 			conv_dispatcher #(
                 .PIX_WIDTH(PIX_WIDTH),
@@ -96,7 +96,7 @@ for (x = 0; x < NOC_X; x = x + 1) begin
     			.noc_out_ready(noc_out_readies[x+NOC_X*y])
             );
         end
-	end
+    end
 end
 endgenerate
 
