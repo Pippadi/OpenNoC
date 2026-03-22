@@ -59,7 +59,7 @@ function automatic [LINE_WIDTH*`PIX_WIDTH-1:0] segment_line(input [`IMG_WIDTH*`P
     if (seg_idx % SEG_CNT_TOT == 0)
         segment_line[`PIX_WIDTH-1:0] = 0; // Right halo
     else
-        segment_line[`PIX_WIDTH-1:0] = img_line[(seg_idx % `SEG_CNT_X - 1)*SEG_WIDTH*`PIX_WIDTH-1 -: `PIX_WIDTH]; // Right halo from previous segment
+        segment_line[`PIX_WIDTH-1:0] = img_line[(seg_idx % `SEG_CNT_X - 1)*SEG_WIDTH*`PIX_WIDTH +: `PIX_WIDTH]; // Right halo from previous segment
     if (seg_idx % `SEG_CNT_X == `SEG_CNT_X - 1)
         segment_line[LINE_WIDTH*`PIX_WIDTH-1 -: `PIX_WIDTH] = 0; // Left halo
     else
@@ -67,8 +67,7 @@ function automatic [LINE_WIDTH*`PIX_WIDTH-1:0] segment_line(input [`IMG_WIDTH*`P
 end
 endfunction
 
-// Make sure that it can reach SEG_CNT_TOT to end the simulation
-reg [$clog2(SEG_CNT_TOT):0] next_seg;
+reg [$clog2(SEG_CNT_TOT)-1:0] next_seg;
 
 reg [$clog2(`NOC_X)-1:0] pe_idx_x;
 reg [$clog2(`NOC_Y)-1:0] pe_idx_y;
@@ -95,7 +94,7 @@ line_chunker #(
     .complete(tx_line_complete)
 );
 
-reg [7:0] aByte;
+reg done;
 reg [7:0] line_temp [0:`IMG_WIDTH-1];
 initial begin
     // Uncomment for value change dump
@@ -103,10 +102,10 @@ initial begin
     $dumpvars(0, conv_tb_noc);
 
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
@@ -115,7 +114,6 @@ initial begin
     // Have to do this, because $fread's count argument is too small to read all of it at once
     for (i = 0; i < `IMG_HEIGHT; i = i + 1) begin
         $fread(line_temp, file, 0, `IMG_WIDTH);
-        //$display("%d", line_temp[511]);
         for (j = 0; j < `IMG_WIDTH; j = j + 1) begin
             img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
         end
@@ -128,8 +126,8 @@ initial begin
     #100;
 
     while (1) begin
-        #5
-        if (next_seg == SEG_CNT_TOT) begin
+        @ (posedge clk);
+        if (done) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);
@@ -149,7 +147,7 @@ always @ (posedge clk) begin
         pe_idx_y <= 1;
         for (i = 0; i < `NOC_X; i = i + 1)
             for (j = 0; j < `NOC_Y; j = j + 1)
-                pe_segment_map[i][j][PE_MAP_WIDTH-1] <= 1'b0;
+                pe_segment_map[i][j] <= {PE_MAP_WIDTH{1'b0}};
 
     end else begin
         case (state)
@@ -175,6 +173,7 @@ always @ (posedge clk) begin
              if (tx_line_complete) begin
                  state <= IDLE;
                  next_seg <= next_seg + 1;
+                 done <= next_seg == SEG_CNT_TOT-1;
              end
         end
         endcase
@@ -183,7 +182,7 @@ end
 
 assign tx_line_valid = (state == SEND);
 
-// For testing before connecting to the NoC
+/* For testing before connecting to the NoC */
 reg tx_chunk_valid_prev;
 always @ (posedge clk) begin
     if (~rst_n) begin
@@ -194,7 +193,7 @@ always @ (posedge clk) begin
         tx_chunk_ready <= tx_chunk_valid & ~tx_chunk_valid_prev;
     end
 end
-//
+/********************************************/
 
 wire [NOC_WIDTH-1:0] noc_out = (state == SEND) ? {4'b0, 4'b0, pe_idx_x, pe_idx_y, tx_chunk_idx, tx_chunk_out} : 0;
 wire noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
