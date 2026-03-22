@@ -10,9 +10,10 @@ module output_chunker
     input clk,
     input pix_in_valid,
     input [PIX_WIDTH-1:0] pix_in,
-    input clear_chunk,
+
     output reg [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_out,
-    output reg chunk_out_valid
+    output reg chunk_out_valid,
+    input chunk_out_ready
 );
 
 reg [$clog2(CHUNK_WIDTH)-1:0] staging_pix_cnt;
@@ -20,15 +21,13 @@ wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_staging;
 
 genvar i;
 generate
-    wire [PIX_WIDTH-1:0] chunk_staging_douts [0:CHUNK_WIDTH-1];
-
     // Doing it this way gets rid of an array out-of-bounds warning
     pixbuf #(.PIX_WIDTH(PIX_WIDTH)) PixZero (
         .rst_n(rst_n),
         .clk(clk),
         .en(pix_in_valid),
         .din(pix_in),
-        .dout(chunk_staging_douts[0])
+        .dout(chunk_staging[PIX_WIDTH-1:0])
     );
 
     for (i = 1; i < CHUNK_WIDTH; i = i + 1) begin
@@ -36,8 +35,8 @@ generate
             .rst_n(rst_n),
             .clk(clk),
             .en(pix_in_valid),
-            .din(chunk_staging_douts[i-1]),
-            .dout(chunk_staging_douts[i])
+            .din(chunk_staging[(i-1)*PIX_WIDTH +: PIX_WIDTH]),
+            .dout(chunk_staging[i*PIX_WIDTH +: PIX_WIDTH])
         );
     end
 endgenerate
@@ -48,15 +47,14 @@ always @ (posedge clk) begin
         chunk_out <= {CHUNK_WIDTH{1'b0}};
         chunk_out_valid <= 0;
     end else begin
-        if (pix_in_valid) begin
-            if (staging_pix_cnt == CHUNK_WIDTH-1) begin
+        if (pix_in_valid && staging_pix_cnt == CHUNK_WIDTH-1) begin
                 chunk_out <= chunk_staging;
                 staging_pix_cnt <= 0;
                 chunk_out_valid <= 1;
-            end else
-                staging_pix_cnt <= staging_pix_cnt + 1;
-        end else
-            chunk_out_valid <= clear_chunk ? 0 : chunk_out_valid;
+        end else begin
+                staging_pix_cnt <= staging_pix_cnt + pix_in_valid;
+                chunk_out_valid <= chunk_out_valid & ~chunk_out_ready;
+        end
     end
 end
 

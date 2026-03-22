@@ -71,8 +71,8 @@ conv_unit #(
     8'd7, 8'd7, 8'd7}), // Box blur kernel, hardcoded for now
     .line_in(line),
     .latch_line_in(conv_latch_line),
-    .pix_out(conv_pix),
     .line_req(conv_line_req),
+    .pix_out(conv_pix),
     .pix_out_valid(conv_pix_valid)
 );
 
@@ -127,7 +127,7 @@ output_chunker #(
     .clk(clk),
     .pix_in_valid(conv_pix_valid),
     .pix_in(conv_pix),
-    .clear_chunk(noc_out_ready),
+    .chunk_out_ready(noc_out_ready),
     .chunk_out(output_chunk),
     .chunk_out_valid(noc_out_valid)
 );
