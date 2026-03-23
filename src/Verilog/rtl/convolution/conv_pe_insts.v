@@ -14,11 +14,18 @@ module conv_pe_insts
     parameter SEG_CNT_X = 2,
     parameter SEG_CNT_Y = 2,
 
-    localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X,
-    localparam LINE_WIDTH = SEG_WIDTH + 2, // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
+    parameter KERN_X = 3,
+    parameter KERN_Y = 3,
 
-    localparam CHUNK_CNT_WIDTH = $clog2(LINE_WIDTH/CHUNK_WIDTH),
-    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + CHUNK_CNT_WIDTH + CHUNK_WIDTH*PIX_WIDTH
+    localparam PADDING_X = KERN_X / 2,
+    localparam PADDING_Y = KERN_Y / 2,
+
+    localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X + 2*PADDING_X,
+    localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2*PADDING_Y,
+    localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
+
+    localparam CHUNK_CNT_WIDTH = $clog2(SEG_WIDTH/CHUNK_WIDTH),
+    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
 )
 (
     input  wire clk,
@@ -75,7 +82,7 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
         end else begin
             conv_pe #(
                 .PIX_WIDTH(PIX_WIDTH),
-                .LINE_WIDTH(LINE_WIDTH),
+                .LINE_WIDTH(SEG_WIDTH),
                 .CHUNK_WIDTH(CHUNK_WIDTH),
                 .NOC_X(NOC_X),
                 .NOC_Y(NOC_Y),

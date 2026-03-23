@@ -16,12 +16,17 @@ module conv_dispatcher
     parameter SEG_CNT_X = 2,
     parameter SEG_CNT_Y = 2,
 
-    localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X,
-    localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
-    localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2,
-    localparam LINE_WIDTH = SEG_WIDTH + 2, // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
+    parameter KERN_X = 3,
+    parameter KERN_Y = 3,
 
-    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(LINE_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
+    localparam PADDING_X = KERN_X / 2,
+    localparam PADDING_Y = KERN_Y / 2,
+
+    localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X + 2*PADDING_X,
+    localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2*PADDING_Y,
+    localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
+
+    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
 )
 (
     input rst_n,
@@ -53,16 +58,17 @@ reg [PE_MAP_WIDTH-1:0] pe_segment_map [0:NOC_X-1][0:NOC_Y-1];
 
 // segment_line extracts the appropriate line segment with halo pixels for the given segment index.
 // It handles edge cases for halo pixels by zero-padding when out of bounds.
-function automatic [LINE_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
-    segment_line[PIX_WIDTH +: PIX_WIDTH*SEG_WIDTH] = img_line[SEG_WIDTH*PIX_WIDTH*(seg_idx % SEG_CNT_X) +: SEG_WIDTH*PIX_WIDTH]; // Main segment pixels
+localparam SEG_W_NOPAD = IMG_WIDTH / SEG_CNT_X;
+function automatic [SEG_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
+    segment_line[PIX_WIDTH +: PIX_WIDTH*SEG_W_NOPAD] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X) +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
     if (seg_idx % SEG_CNT_X == 0)
         segment_line[PIX_WIDTH-1:0] = 0; // Right halo
     else
-        segment_line[PIX_WIDTH-1:0] = img_line[(seg_idx % SEG_CNT_X - 1)*SEG_WIDTH*PIX_WIDTH +: PIX_WIDTH]; // Right halo from previous segment
+        segment_line[PIX_WIDTH-1:0] = img_line[(seg_idx % SEG_CNT_X - 1)*SEG_W_NOPAD*PIX_WIDTH +: PIX_WIDTH]; // Right halo from previous segment
     if (seg_idx % SEG_CNT_X == SEG_CNT_X - 1)
-        segment_line[LINE_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH] = 0; // Left halo
+        segment_line[SEG_W_NOPAD*PIX_WIDTH-1 -: PIX_WIDTH] = 0; // Left halo
     else
-        segment_line[LINE_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH] = img_line[SEG_WIDTH*PIX_WIDTH*(seg_idx % SEG_CNT_X + 1) +: PIX_WIDTH]; // Left halo from next segment
+        segment_line[SEG_W_NOPAD*PIX_WIDTH-1 -: PIX_WIDTH] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X + 1) +: PIX_WIDTH]; // Left halo from next segment
 end
 endfunction
 
@@ -72,27 +78,27 @@ reg [$clog2(SEG_CNT_TOT)-1:0] next_seg;
 
 wire [$clog2(SEG_CNT_TOT)-1:0] pe_seg = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)+:$clog2(SEG_CNT_TOT)];
 wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0];
-reg [LINE_WIDTH*PIX_WIDTH-1:0] current_segment_line;
+reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line;
 always @ (*) begin
     img_line_idx = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0] +
         (pe_seg_line / SEG_CNT_X) * (SEG_HEIGHT-2);
 
     if ((pe_seg / SEG_CNT_X == 0 && pe_seg_line == 0) ||
         (pe_seg / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line == SEG_HEIGHT-1))
-        current_segment_line = {LINE_WIDTH{{PIX_WIDTH{1'b0}}}};
+        current_segment_line = {SEG_WIDTH{{PIX_WIDTH{1'b0}}}};
     else
         current_segment_line = segment_line(img_line_in, next_seg);
 end
 
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_chunk_out;
-wire [$clog2(LINE_WIDTH/CHUNK_WIDTH)-1:0] tx_chunk_idx;
+wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] tx_chunk_idx;
 wire tx_line_valid;
 wire tx_line_complete;
 wire tx_chunk_valid, tx_chunk_ready;
 
 line_chunker #(
     .PIX_WIDTH(PIX_WIDTH),
-    .LINE_WIDTH(LINE_WIDTH),
+    .LINE_WIDTH(SEG_WIDTH),
     .CHUNK_WIDTH(CHUNK_WIDTH)
 ) LineChunker (
     .rst_n(rst_n),

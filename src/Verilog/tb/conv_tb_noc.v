@@ -17,6 +17,9 @@
 `define NOC_X 2 // NoC X dimension (number of columns of PEs)
 `define NOC_Y 2 // NoC Y dimension (number of rows of PEs)
 
+`define KERN_X 3
+`define KERN_Y 3
+
 module conv_tb_noc();
 
 reg clk;
@@ -26,11 +29,12 @@ integer file, file1, i, j;
 
 reg [`IMG_WIDTH*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT-1];
 
-localparam SEG_WIDTH = `IMG_WIDTH / `SEG_CNT_X;
-localparam SEG_HEIGHT = `IMG_HEIGHT / `SEG_CNT_Y;
+localparam PADDING_X = `KERN_X / 2;
+localparam PADDING_Y = `KERN_Y / 2;
+localparam SEG_WIDTH = `IMG_WIDTH / `SEG_CNT_X + 2*PADDING_X;
+localparam SEG_HEIGHT = `IMG_HEIGHT / `SEG_CNT_Y + 2*PADDING_Y;
 localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
-localparam LINE_WIDTH = SEG_WIDTH + 2; // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
-localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(LINE_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
+localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
 wire done;
 wire [$clog2(`IMG_HEIGHT)-1:0] img_line_idx;
@@ -137,7 +141,7 @@ initial begin
 
     while (1) begin
         @(posedge clk);
-        if (recvd_chunk_cnt == (`SEG_CNT_X*`SEG_CNT_Y-1)*LINE_WIDTH/`CHUNK_WIDTH) begin
+        if (recvd_chunk_cnt == (`SEG_CNT_X*`SEG_CNT_Y-1)*SEG_WIDTH/`CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);
