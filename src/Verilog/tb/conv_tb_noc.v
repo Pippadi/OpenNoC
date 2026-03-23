@@ -13,7 +13,7 @@
 // LINE_WIDTH is calculated as SEG_WIDTH+2 below to account for halo pixels. Ensure that CHUNK_WIDTH divides LINE_WIDTH.
 `define CHUNK_WIDTH 6 // In pixels
 `define SEG_CNT_X 2
-`define SEG_CNT_Y 1
+`define SEG_CNT_Y 2
 `define NOC_X 2 // NoC X dimension (number of columns of PEs)
 `define NOC_Y 2 // NoC Y dimension (number of rows of PEs)
 
@@ -113,10 +113,10 @@ initial begin
     $dumpvars(0, conv_tb_noc);
 
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
@@ -137,7 +137,7 @@ initial begin
 
     while (1) begin
         @(posedge clk);
-        if (done && recvd_chunk_cnt == `SEG_CNT_X*`SEG_CNT_Y*LINE_WIDTH/`CHUNK_WIDTH) begin
+        if (recvd_chunk_cnt == (`SEG_CNT_X*`SEG_CNT_Y-1)*LINE_WIDTH/`CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);

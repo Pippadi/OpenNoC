@@ -76,7 +76,9 @@ wire tx_line_valid;
 wire tx_line_complete;
 wire tx_chunk_valid, tx_chunk_ready;
 
-assign img_line_idx = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]; // Line index is stored in the least significant bits of the PE map entry
+assign img_line_idx =
+    pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0] +
+    (pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)+:$clog2(SEG_CNT_TOT)] / SEG_CNT_X) * SEG_HEIGHT;
 wire [LINE_WIDTH*PIX_WIDTH-1:0] current_segment_line = segment_line(img_line_in, next_seg);
 
 line_chunker #(
