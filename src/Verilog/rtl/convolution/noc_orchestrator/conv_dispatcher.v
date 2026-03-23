@@ -17,8 +17,8 @@ module conv_dispatcher
     parameter SEG_CNT_Y = 2,
 
     localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X,
-    localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y,
     localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
+    localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2,
     localparam LINE_WIDTH = SEG_WIDTH + 2, // +2 for the halo pixels on each side. Assumes 3x3 kernel for now, parameterize later.
 
     localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(LINE_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
@@ -27,7 +27,7 @@ module conv_dispatcher
     input rst_n,
     input clk,
 
-    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
+    output reg [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
 
     input wire noc_in_valid,
@@ -55,7 +55,7 @@ reg [PE_MAP_WIDTH-1:0] pe_segment_map [0:NOC_X-1][0:NOC_Y-1];
 // It handles edge cases for halo pixels by zero-padding when out of bounds.
 function automatic [LINE_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
     segment_line[PIX_WIDTH +: PIX_WIDTH*SEG_WIDTH] = img_line[SEG_WIDTH*PIX_WIDTH*(seg_idx % SEG_CNT_X) +: SEG_WIDTH*PIX_WIDTH]; // Main segment pixels
-    if (seg_idx % SEG_CNT_TOT == 0)
+    if (seg_idx % SEG_CNT_X == 0)
         segment_line[PIX_WIDTH-1:0] = 0; // Right halo
     else
         segment_line[PIX_WIDTH-1:0] = img_line[(seg_idx % SEG_CNT_X - 1)*SEG_WIDTH*PIX_WIDTH +: PIX_WIDTH]; // Right halo from previous segment
@@ -66,20 +66,29 @@ function automatic [LINE_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_
 end
 endfunction
 
-reg [$clog2(SEG_CNT_TOT)-1:0] next_seg;
 reg [$clog2(NOC_X)-1:0] pe_idx_x;
 reg [$clog2(NOC_Y)-1:0] pe_idx_y;
+reg [$clog2(SEG_CNT_TOT)-1:0] next_seg;
+
+wire [$clog2(SEG_CNT_TOT)-1:0] pe_seg = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)+:$clog2(SEG_CNT_TOT)];
+wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0];
+reg [LINE_WIDTH*PIX_WIDTH-1:0] current_segment_line;
+always @ (*) begin
+    img_line_idx = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0] +
+        (pe_seg_line / SEG_CNT_X) * (SEG_HEIGHT-2);
+
+    if ((pe_seg / SEG_CNT_X == 0 && pe_seg_line == 0) ||
+        (pe_seg / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line == SEG_HEIGHT-1))
+        current_segment_line = {LINE_WIDTH{{PIX_WIDTH{1'b0}}}};
+    else
+        current_segment_line = segment_line(img_line_in, next_seg);
+end
 
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_chunk_out;
 wire [$clog2(LINE_WIDTH/CHUNK_WIDTH)-1:0] tx_chunk_idx;
 wire tx_line_valid;
 wire tx_line_complete;
 wire tx_chunk_valid, tx_chunk_ready;
-
-assign img_line_idx =
-    pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0] +
-    (pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)+:$clog2(SEG_CNT_TOT)] / SEG_CNT_X) * SEG_HEIGHT;
-wire [LINE_WIDTH*PIX_WIDTH-1:0] current_segment_line = segment_line(img_line_in, next_seg);
 
 line_chunker #(
     .PIX_WIDTH(PIX_WIDTH),
@@ -144,7 +153,9 @@ end
 assign tx_line_valid = (state == SEND);
 
 // Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
-assign noc_out_data = (state == SEND) ? {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y} : {NOC_BIT_WIDTH{1'b0}};
+assign noc_out_data = (state == SEND) ?
+    {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y} :
+    {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
 assign tx_chunk_ready = noc_out_ready;
 
