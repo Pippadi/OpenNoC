@@ -137,98 +137,65 @@ module reassembler
     // PE. Assert for exactly one clock cycle.
     output reg line_recvd,
 
-    // If there's another way you'd like to do this, feel free,
-    // we can offload some of the logic to the testbench right now.
-    // Just need some way to get the image data back to the testbench.
-    output reg [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
-    output reg [IMG_WIDTH*PIX_WIDTH-1:0] img_line_out,
+    // Entire image
+    output reg [IMG_WIDTH*IMG_HEIGHT*PIX_WIDTH-1:0] img_out,
     // Assert for one cycle, no acknowledgement needed
-    output reg img_line_valid
+    output reg img_valid
 );
-
-    // the buffer is IMG_WIDTH wide but in Y it has only 2 SEGMENTS
-    // one gets filled while the other can be thrown out in parallel
-    // line_chunk_counter = counts the number of chunks received for a line in the segment
-    // seg_line_counter = number of lines received for a segment
-    // seg_idx_x_counter determines which of the segments in X is being filled currently
-    // buffer_y_idx_coutner determines which of the Y SEGMENT ROWS is being filled currently
 
     localparam IMG_LINE_SIZE = IMG_WIDTH * PIX_WIDTH;
     localparam SEG_ROW_SIZE = IMG_LINE_SIZE * SEG_HEIGHT;
-    localparam LINE_SIZE = SEG_WIDTH * PIX_WIDTH;
 
-    reg [2*SEG_CNT_X*SEG_HEIGHT*SEG_WIDTH*PIX_WIDTH-1:0] buff_img;
-
-    reg [$clog2(SEG_LINE_CHUNK_CNT)-1:0] line_chunk_counter;
-    reg [$clog2(SEG_HEIGHT)-1:0] seg_line_counter;
-    reg [$clog2(SEG_CNT_X)-1:0] seg_idx_x_counter;
-    reg buffer_y_idx_counter; // only needs to count up to 2 because buffer only has 2 segments in Y
-
-    reg [1:0] throw_state; // determines weather a particular lane is ready to be given as an output
-    reg [$clog2(SEG_HEIGHT)-1:0] throw_line_counter; // counts the index of the line to be thrown out
+    reg [$clog2(SEG_HEIGHT) - 1:0] seg_line_counters [SEG_CNT_TOT];
+    reg [$clog2(SEG_LINE_CHUNK_CNT) - 1:0] seg_line_chunk_count [SEG_CNT_TOT];
+    reg [$clog2(SEG_CNT_TOT) - 1:0] segments_received;
 
     wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in;
     assign chunk_in = noc_in_data[CHUNK_WIDTH*PIX_WIDTH-1:0];
 
-    wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] chunk_idx_x;
-    assign chunk_idx_x = noc_in_data[CHUNK_WIDTH*PIX_WIDTH -: $clog2(SEG_WIDTH/CHUNK_WIDTH)];
+    wire [$clog2(SEG_CNT_X*SEG_CNT_Y)-1:0] seg_no_in;
+    wire [$clog2(SEG_HEIGHT)-1:0] seg_line_no_in;
+    wire [$clog2(SEG_LINE_CHUNK_CNT)-1:0] seg_line_chunk_no_in;
+    // --------------------------------------------------------
+    // add the logic here to get segment number, line number, and chunk number from the incoming data
 
+    // --------------------------------------------------------
+
+
+    integer i;
     always @(negedge rst_n) begin
-        // reset all counters
-        img_line_idx <= 0;
-        img_line_valid <= 0;
-        line_chunk_counter <= 0;
-        seg_line_counter <= 0;
-        seg_idx_x_counter <= 0;
-        buffer_y_idx_counter <= 0;
-        throw_state <= 0;
-        throw_line_counter <= -1;
-        img_line_idx <= -1; // when new lines are thrown out +1 to the previous value, img_line_idx will overflow and become 0, which is the index of the first line of the image
+        // reset logic
+        for (i = 0; i < SEG_CNT_TOT; i = i + 1) begin
+            seg_line_counters[i] <= 0;
+            seg_line_chunk_count[i] <= 0;
+        end
+        img_valid <= 0;
+        segments_received <= 0;
     end
 
     always @(posedge clk) begin
-        if (rst_n && noc_in_valid) begin
-            buff_img[buffer_y_idx_counter*SEG_ROW_SIZE + seg_line_counter*IMG_LINE_SIZE + seg_idx_x_counter*LINE_SIZE + chunk_idx_x*CHUNK_WIDTH*PIX_WIDTH +: CHUNK_WIDTH*PIX_WIDTH] <= chunk_in;
+        if (rst_n) begin
+            // SEG_IN_X = seg_no_in % SEG_CNT_X
+            // SEG_IN_Y = seg_no_in / SEG_CNT_X
+            img_out[((seg_no_in / SEG_CNT_X) + seg_line_no_in)*IMG_LINE_SIZE + (seg_no_in % SEG_CNT_X)*SEG_WIDTH*PIX_WIDTH + seg_line_chunk_no_in*CHUNK_WIDTH*PIX_WIDTH +: CHUNK_WIDTH*PIX_WIDTH] <= chunk_in;
 
-            // incrementing counters as needed
-            // incrementing the line_chunk_counter, rolling it back to 0 when a line inside a segment has been filled
-            if (line_chunk_counter == SEG_LINE_CHUNK_CNT - 1) begin
-                line_chunk_counter <= 0;
-
-                // incrementing the seg_line_counter, rolling it back to 0 when the full segment has been filled
-                if (seg_line_counter == SEG_HEIGHT - 1) begin
-                    seg_line_counter <= 0;
-
-                    // incrementing the seg_idx_x_counter, rolling back to 0 and switching the lanes when the entire
-                    // row of segments has been filled
-                    if (seg_idx_x_counter == SEG_CNT_X - 1) begin
-                        seg_idx_x_counter <= 0;
-                        throw_state[buffer_y_idx_counter] <= 1; // the lane that just got filled is ready to be thrown out
-                        buffer_y_idx_counter = ~buffer_y_idx_counter;
-                    end else begin
-                        seg_idx_x_counter <= seg_idx_x_counter + 1;
+            // incrementing appropriate chunk counters and line counters
+            if (seg_line_chunk_count[seg_no_in] == SEG_LINE_CHUNK_CNT - 1) begin
+                seg_line_chunk_count[seg_no_in] <= 0;
+                if (seg_line_counters[seg_no_in] == SEG_HEIGHT - 1) begin
+                    seg_line_counters[seg_no_in] <= 0;
+                    // segment fully received
+                    segments_received <= segments_received + 1;
+                    if (segments_received == SEG_CNT_TOT - 1) begin
+                        img_valid <= 1;
                     end
                 end else begin
-                    seg_line_counter <= seg_line_counter + 1;
+                    seg_line_counters[seg_no_in] <= seg_line_counters[seg_no_in] + 1;
                 end
             end else begin
-                line_chunk_counter <= line_chunk_counter + 1;
-            end
-
-            // output mechanism, can be done in parallel with receiving the next line
-            if (&throw_state) begin
-                localparam BUF_LINE_IDX = throw_state[1] * SEG_HEIGHT + throw_line_counter;
-                img_line_out <= buff_img[BUF_LINE_IDX*IMG_LINE_SIZE +: IMG_LINE_SIZE];
-                img_line_idx <= img_line_idx + 1;
-                img_line_valid <= 1;
-
-                if (throw_line_counter == SEG_HEIGHT - 1) begin
-                    throw_line_counter <= 0;
-                    throw_state[~buffer_y_idx_counter] <= 0;
-                end else begin
-                    throw_line_counter <= throw_line_counter + 1;
-                end
+                seg_line_chunk_count[seg_no_in] <= seg_line_chunk_count[seg_no_in] + 1;
             end
         end
     end
+
 endmodule
