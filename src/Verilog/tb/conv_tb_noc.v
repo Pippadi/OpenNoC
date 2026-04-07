@@ -10,7 +10,8 @@
 // Each PE processes a segment of the image. Each segment is fed line-by-line to the PEs.
 // These lines are sent chunk-by-chunk over the NoC. Because NoC width is the ultimate parameter we want
 // to optimize for, we parameterize the chunk width separately from the segment width.
-// LINE_WIDTH is calculated as SEG_WIDTH+2 below to account for halo pixels. Ensure that CHUNK_WIDTH divides LINE_WIDTH.
+// Segment width is calculated as IMG_WIDTH / (SEG_CNT_X + floor(KERN_X/2)). Ensure CHUNK_WIDTH evenly
+// divides segment width.
 `define CHUNK_WIDTH 6 // In pixels
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 2
@@ -141,7 +142,7 @@ initial begin
 
     while (1) begin
         @(posedge clk);
-        if (recvd_chunk_cnt == (`SEG_CNT_X*`SEG_CNT_Y-1)*SEG_WIDTH/`CHUNK_WIDTH) begin
+        if (recvd_chunk_cnt == (`NOC_X*`NOC_Y-1)*SEG_WIDTH/`CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);

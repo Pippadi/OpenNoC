@@ -33,3 +33,5 @@
 *.ini
 *xdbtags
 tags
+src/Verilog/tb/conv_tb_noc.vcd
+src/Verilog/tb/convtest
