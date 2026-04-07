@@ -32,8 +32,14 @@ module orchestrator
     input rst_n,
     input clk,
 
+    // Combinationally read
     output reg [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
+
+    // Valid signal asserted for a single cycle
+    output wire [$clog2(SEG_CNT_TOT)-1:0] img_line_out_seg_idx,
+    input [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
+    output wire img_line_out_valid,
 
     input wire noc_in_valid,
     input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
@@ -102,6 +108,40 @@ conv_dispatcher #(
     .done(done)
 );
 
+wire [$clog2(NOC_X)-1:0] reas_pe_x;
+wire [$clog2(NOC_Y)-1:0] reas_pe_y;
+wire reas_line_out_valid;
+
+reassembler #(
+    .PIX_WIDTH(PIX_WIDTH),
+    .NOC_X(NOC_X),
+    .NOC_Y(NOC_Y),
+    .NOC_ADDR_X(NOC_ADDR_X),
+    .NOC_ADDR_Y(NOC_ADDR_Y),
+    .IMG_WIDTH(IMG_WIDTH),
+    .IMG_HEIGHT(IMG_HEIGHT),
+    .CHUNK_WIDTH(CHUNK_WIDTH),
+    .SEG_CNT_X(SEG_CNT_X),
+    .SEG_CNT_Y(SEG_CNT_Y),
+    .KERN_X(KERN_X),
+    .KERN_Y(KERN_Y)
+) Reassembler (
+    .rst_n(rst_n),
+    .clk(clk),
+
+    .noc_in_valid(noc_in_valid),
+    .noc_in_data(noc_in_data),
+    .noc_in_ready(noc_in_ready),
+
+    .out_line_pe_x(reas_pe_x),
+    .out_line_pe_y(reas_pe_y),
+    .out_line(img_line_out),
+    .out_line_valid(reas_line_out_valid)
+);
+
+assign img_line_out_seg_idx = pe_seg_map[reas_pe_x][reas_pe_y];
+assign img_line_out_valid = reas_line_out_valid;
+
 integer x, y;
 always @ (posedge clk) begin
     if (~rst_n) begin
@@ -113,8 +153,13 @@ always @ (posedge clk) begin
             end
         end
     end else begin
-        if (disp_pe_set_busy)
+        if (disp_pe_set_busy && !(disp_pe_x == reas_pe_x && disp_pe_y == reas_pe_y && reas_line_out_valid))
             pe_busies[disp_pe_x][disp_pe_y] <= 1;
+        else if (reas_line_out_valid) begin
+            pe_busies[reas_pe_x][reas_pe_y] <= 0;
+            pe_seg_line_map[reas_pe_x][reas_pe_y] <= (pe_seg_line_map[reas_pe_x][reas_pe_y] == SEG_HEIGHT-1) ? 0 : pe_seg_line_map[reas_pe_x][reas_pe_y] + 1;
+        end
+
         if (disp_pe_set_seg)
             pe_seg_map[disp_pe_x][disp_pe_y] <= disp_pe_seg_out;
     end

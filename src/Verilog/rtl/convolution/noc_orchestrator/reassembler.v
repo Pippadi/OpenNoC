@@ -42,7 +42,7 @@ module reassembler
     output reg [$clog2(NOC_X)-1:0] out_line_pe_x,
     output reg [$clog2(NOC_Y)-1:0] out_line_pe_y,
     // Segment line to be output
-    output reg [IMG_WIDTH/SEG_CNT_X-1:0] out_line,
+    output reg [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] out_line,
     // Assert for one cycle, no acknowledgement needed
     output reg out_line_valid
 );
@@ -79,23 +79,24 @@ generate
     end
 endgenerate
 
-reg [$clog2(NOC_X*NOC_Y)-1:0] out_line_pe_idx;
+wire [$clog2(NOC_X*NOC_Y)-1:0] out_line_pe_idx;
 priority_encoder #(.N(NOC_X*NOC_Y)) LineValidEncoder (
     .in(buf_line_valids),
     .out(out_line_pe_idx)
 );
 
+integer i, j;
 reg state;
 localparam IDLE = 1'b0, OUTPUT = 1'b1;
 always @ (posedge clk) begin
     if (~rst_n) begin
-        line_recvd <= 0;
         out_line_valid <= 0;
         out_line_pe_x <= 0;
         out_line_pe_y <= 0;
-        buf_line_clears <= {NOC_X*NOC_Y{1'b0}};
+        for (i = 0; i < NOC_X; i = i + 1)
+            for (j = 0; j < NOC_Y; j = j + 1)
+                buf_line_clears[i][j] <= 0;
         state <= IDLE;
-        out_line_pe_idx <= 0;
     end else begin
         case (state)
             IDLE: begin
@@ -103,7 +104,6 @@ always @ (posedge clk) begin
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
 
                 if (|buf_line_valids) begin
-                    line_recvd <= 1;
                     out_line_valid <= 1;
                     out_line_pe_x <= out_line_pe_idx / NOC_Y;
                     out_line_pe_y <= out_line_pe_idx % NOC_Y;
@@ -112,7 +112,6 @@ always @ (posedge clk) begin
             end
 
             OUTPUT: begin
-                line_recvd <= 0;
                 out_line_valid <= 0;
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
                 state <= IDLE;
@@ -125,6 +124,6 @@ end
 // but that's highly unlikely.
 assign noc_in_ready = ~(state == OUTPUT && out_line_pe_x == pe_x_idx && out_line_pe_y == pe_y_idx);
 
-assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y];
+assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y][(SEG_WIDTH-PADDING_X)*PIX_WIDTH : PADDING_X*PIX_WIDTH];
 
 endmodule

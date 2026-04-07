@@ -142,7 +142,7 @@ initial begin
 
     while (1) begin
         @(posedge clk);
-        if (recvd_chunk_cnt == (`NOC_X*`NOC_Y-1)*SEG_WIDTH/`CHUNK_WIDTH) begin
+        if (recvd_chunk_cnt == SEG_CNT_TOT*SEG_HEIGHT*SEG_WIDTH/`CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);
