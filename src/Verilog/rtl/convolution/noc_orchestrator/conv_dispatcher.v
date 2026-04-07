@@ -35,26 +35,26 @@ module conv_dispatcher
     output reg [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
 
-    input wire noc_in_valid,
-    input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
-    output wire noc_in_ready,
+    // --- PE info interface ---
+    output reg [$clog2(NOC_X)-1:0] pe_idx_x,
+    output reg [$clog2(NOC_Y)-1:0] pe_idx_y,
+
+    input wire pe_busy,
+    input wire [$clog2(SEG_CNT_TOT)-1:0] pe_seg_in,
+    input wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line_no,
+
+    output reg pe_set_busy,
+    output wire [$clog2(SEG_CNT_TOT)-1:0] pe_seg_out,
+    output reg pe_set_seg,
+    // -------------------------
 
     input noc_out_ready,
     output wire [NOC_BIT_WIDTH-1:0] noc_out_data,
     output wire noc_out_valid,
 
     // For testing
-    output integer recvd_chunk_cnt,
     output reg done
 );
-
-integer i, j;
-
-// Map from PE index to segment index
-// Most significant bit for idle, next bits for segment index, remaining bits for line index
-// Is there a better way to do this?
-localparam PE_MAP_WIDTH = 1 + $clog2(SEG_CNT_TOT) + $clog2(SEG_HEIGHT);
-reg [PE_MAP_WIDTH-1:0] pe_segment_map [0:NOC_X-1][0:NOC_Y-1];
 
 // segment_line extracts the appropriate line segment with halo pixels for the given segment index.
 // It handles edge cases for halo pixels by zero-padding when out of bounds.
@@ -72,19 +72,15 @@ function automatic [SEG_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_W
 end
 endfunction
 
-reg [$clog2(NOC_X)-1:0] pe_idx_x;
-reg [$clog2(NOC_Y)-1:0] pe_idx_y;
 reg [$clog2(SEG_CNT_TOT)-1:0] next_seg;
 
-wire [$clog2(SEG_CNT_TOT)-1:0] pe_seg = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)+:$clog2(SEG_CNT_TOT)];
-wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0];
 reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line;
 always @ (*) begin
-    img_line_idx = pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0] +
-        (pe_seg_line / SEG_CNT_X) * (SEG_HEIGHT-2);
+    // Offset within segment + (Y component of segment * segment height)
+    img_line_idx = pe_seg_line_no + ((pe_seg_in / SEG_CNT_X) * (IMG_HEIGHT/SEG_CNT_Y));
 
-    if ((pe_seg / SEG_CNT_X == 0 && pe_seg_line == 0) ||
-        (pe_seg / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line == SEG_HEIGHT-1))
+    if ((pe_seg_in / SEG_CNT_X == 0 && pe_seg_line_no == 0) ||
+        (pe_seg_in / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no == SEG_HEIGHT-1))
         current_segment_line = {SEG_WIDTH{{PIX_WIDTH{1'b0}}}};
     else
         current_segment_line = segment_line(img_line_in, next_seg);
@@ -121,20 +117,21 @@ always @ (posedge clk) begin
         next_seg <= 0;
         pe_idx_x <= 0;
         pe_idx_y <= 1;
-        for (i = 0; i < NOC_X; i = i + 1)
-            for (j = 0; j < NOC_Y; j = j + 1)
-                pe_segment_map[i][j] <= {PE_MAP_WIDTH{1'b0}};
-
+        pe_set_busy <= 0;
+        pe_set_seg <=0;
     end else begin
         case (state)
         IDLE: if (~done) begin
             // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
-            $display("PE %d, %d: %b", pe_idx_x, pe_idx_y, pe_segment_map[pe_idx_x][pe_idx_y]);
-            if (pe_segment_map[pe_idx_x][pe_idx_y][PE_MAP_WIDTH-1] == 0) begin
-                // Mark PE as busy, assign segment index, and preserve line index (incremented when line received by PE)
-                pe_segment_map[pe_idx_x][pe_idx_y] <= {1'b1, next_seg, pe_segment_map[pe_idx_x][pe_idx_y][$clog2(SEG_HEIGHT)-1:0]};
+            $display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
+            if (~pe_busy) begin
+                pe_set_busy <= 1;
+                // Reassembler will reset segment line number when segment complete
+                pe_set_seg  <= pe_seg_line_no == 0;
                 state <= SEND;
             end else begin
+                pe_set_busy <= 0;
+                pe_set_seg <= 0;
                 state <= IDLE;
                 if (pe_idx_y == NOC_Y - 1) begin
                     pe_idx_x <= (pe_idx_x == NOC_X-1) ? 0 : pe_idx_x + 1;
@@ -146,6 +143,8 @@ always @ (posedge clk) begin
 
         // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.
         SEND: begin
+            pe_set_busy <= 0;
+            pe_set_seg <= 0;
              if (tx_line_complete) begin
                  state <= IDLE;
                  next_seg <= next_seg + 1;
@@ -156,27 +155,15 @@ always @ (posedge clk) begin
     end
 end
 
+assign pe_seg_out = next_seg;
+
 assign tx_line_valid = (state == SEND);
+assign tx_chunk_ready = noc_out_ready;
 
 // Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
 assign noc_out_data = (state == SEND) ?
     {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y} :
     {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
-assign tx_chunk_ready = noc_out_ready;
-
-
-/* Remove when we have a reassembler (drops processed chunks for now) */
-// TODO: Increment line number for PE
-assign noc_in_ready = 1;
-always @ (posedge clk) begin
-    if (~rst_n) begin
-        recvd_chunk_cnt <= 0;
-    end else begin
-        if (noc_in_valid)
-            recvd_chunk_cnt <= recvd_chunk_cnt + 1;
-    end
-end
-/********************************************/
 
 endmodule

@@ -40,9 +40,9 @@ module conv_pe_insts
     input wire [(NOC_BIT_WIDTH*NOC_X*NOC_Y)-1:0]  noc_in_datas,
     output wire [(NOC_X*NOC_Y)-1:0]              noc_in_readies,
 
-    // Dispatcher interfaces
+    // Orchestrator interfaces
     input wire [PIX_WIDTH*IMG_WIDTH-1:0] img_line_in,
-    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
+    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
     // For testing
     output wire [31:0] recvd_chunk_cnt,
     output wire done
@@ -53,7 +53,7 @@ generate
 for (x = 0; x < NOC_X; x = x + 1) begin: xs
     for (y = 0; y < NOC_Y; y = y + 1) begin: ys
         if(x==0 & y==0) begin
-			conv_dispatcher #(
+			orchestrator #(
                 .PIX_WIDTH(PIX_WIDTH),
                 .NOC_X(NOC_X),
                 .NOC_Y(NOC_Y),
@@ -62,10 +62,11 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .CHUNK_WIDTH(CHUNK_WIDTH),
                 .SEG_CNT_X(SEG_CNT_X),
                 .SEG_CNT_Y(SEG_CNT_Y)
-            ) Dispatcher (
+            ) Orchestrator (
                 .rst_n(rst_n),
                 .clk(clk),
-                .img_line_idx(img_line_idx),
+
+                .img_line_in_idx(img_line_in_idx),
                 .img_line_in(img_line_in),
 
                 .noc_in_valid(noc_in_valids[x+NOC_X*y]),

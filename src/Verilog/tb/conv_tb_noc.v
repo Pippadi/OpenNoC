@@ -38,7 +38,7 @@ localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
 localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
 wire done;
-wire [$clog2(`IMG_HEIGHT)-1:0] img_line_idx;
+wire [$clog2(`IMG_HEIGHT)-1:0] img_line_in_idx;
 wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks received by the dispatcher
 
 // Directions are from the perspective of the PE
@@ -70,9 +70,9 @@ conv_pe_insts #(
     .noc_in_datas(noc_in_datas),
     .noc_in_readies(noc_in_readies),
 
-    // Dispatcher interfaces
-    .img_line_in(img[img_line_idx]),
-    .img_line_idx(img_line_idx),
+    // Orchestrator interfaces
+    .img_line_in_idx(img_line_in_idx),
+    .img_line_in(img[img_line_in_idx]),
     // For testing
     .recvd_chunk_cnt(recvd_chunk_cnt),
     .done(done)
@@ -105,7 +105,7 @@ end
 
 // Timeout for infinite loop and short simulation runs when using dumpvars
 initial begin
-    #50000;
+    #100000;
     $fclose(file);
     $fclose(file1);
     $finish;
