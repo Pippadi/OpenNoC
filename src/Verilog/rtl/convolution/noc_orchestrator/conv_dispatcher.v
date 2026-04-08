@@ -121,7 +121,7 @@ always @ (posedge clk) begin
         pe_set_seg <=0;
     end else begin
         case (state)
-        IDLE: begin
+        IDLE: if (~done) begin
             // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
             //$display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
             if (~pe_busy) begin
@@ -147,7 +147,7 @@ always @ (posedge clk) begin
             pe_set_seg <= 0;
              if (tx_line_complete) begin
                  state <= IDLE;
-                 next_seg <= next_seg + 1;
+                 next_seg <= (pe_seg_line_no == 0) ? next_seg + 1 : next_seg;
                  done <= pe_seg_in == SEG_CNT_TOT-1 && pe_seg_line_no == SEG_HEIGHT-1;
              end
         end

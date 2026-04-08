@@ -98,7 +98,6 @@ always @ (posedge clk) begin
         out_line_valid <= 0;
         out_line_pe_x <= 0;
         out_line_pe_y <= 0;
-        inc_pe_seg_line <= 0;
         for (i = 0; i < NOC_X; i = i + 1)
             for (j = 0; j < NOC_Y; j = j + 1)
                 buf_line_clears[i][j] <= 0;
@@ -124,7 +123,7 @@ always @ (posedge clk) begin
             CLEAR: begin
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
                 out_line_valid <= 0;
-                inc_pe_seg_line <= 1;
+                inc_pe_seg_line <= 0;
                 state <= IDLE;
             end
         endcase

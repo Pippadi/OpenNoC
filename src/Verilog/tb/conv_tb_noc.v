@@ -26,7 +26,7 @@ module conv_tb_noc();
 reg clk;
 reg rst_n;
 reg [`PIX_WIDTH-1:0] imgData;
-integer file, file1, i, j;
+integer file, file1, i, j, line_recvd_cnt;
 
 reg [`IMG_WIDTH*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT-1];
 
@@ -165,16 +165,19 @@ initial begin
     rst_n = 1;
     #100;
 
+    line_recvd_cnt = 0;
     while (1) begin
         @(posedge clk);
         if (img_line_out_valid) begin
+            line_recvd_cnt = line_recvd_cnt + 1;
+            $display("%d", img_line_out_idx);
             // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
             $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
             for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1)
                 $fwrite(file1, "%c", img_line_out[8*i +: 8]);
         end
 
-        if (recvd_chunk_cnt == SEG_CNT_TOT*SEG_HEIGHT*SEG_WIDTH/`CHUNK_WIDTH) begin
+        if (line_recvd_cnt == `IMG_HEIGHT*`SEG_CNT_X) begin
             // All segments sent and processed
             $fclose(file);
             $fclose(file1);
