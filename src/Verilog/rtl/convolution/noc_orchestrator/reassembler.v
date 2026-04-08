@@ -86,8 +86,8 @@ priority_encoder #(.N(NOC_X*NOC_Y)) LineValidEncoder (
 );
 
 integer i, j;
-reg state;
-localparam IDLE = 1'b0, OUTPUT = 1'b1;
+reg [1:0] state;
+localparam IDLE = 2'b00, OUTPUT = 2'b01, CLEAR = 2'b10;
 always @ (posedge clk) begin
     if (~rst_n) begin
         out_line_valid <= 0;
@@ -100,9 +100,6 @@ always @ (posedge clk) begin
     end else begin
         case (state)
             IDLE: begin
-                // Make sure clear is asserted for only one cycle
-                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
-
                 if (|buf_line_valids) begin
                     out_line_valid <= 1;
                     out_line_pe_x <= out_line_pe_idx / NOC_Y;
@@ -114,7 +111,12 @@ always @ (posedge clk) begin
             OUTPUT: begin
                 out_line_valid <= 0;
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
+                state <= CLEAR;
+            end
+
+            CLEAR: begin
                 state <= IDLE;
+                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
             end
         endcase
     end

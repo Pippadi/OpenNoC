@@ -52,7 +52,7 @@ genvar x, y;
 generate
 for (x = 0; x < NOC_X; x = x + 1) begin: xs
     for (y = 0; y < NOC_Y; y = y + 1) begin: ys
-        if(x==0 & y==0) begin
+        if(x==0 & y==0) begin: orchestrator
 			orchestrator #(
                 .PIX_WIDTH(PIX_WIDTH),
                 .NOC_X(NOC_X),
@@ -80,7 +80,7 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .recvd_chunk_cnt(recvd_chunk_cnt),
                 .done(done)
             );
-        end else begin
+        end else begin: conv_pe
             conv_pe #(
                 .PIX_WIDTH(PIX_WIDTH),
                 .LINE_WIDTH(SEG_WIDTH),

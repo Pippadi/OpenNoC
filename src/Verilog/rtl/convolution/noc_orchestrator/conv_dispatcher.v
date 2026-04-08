@@ -121,9 +121,9 @@ always @ (posedge clk) begin
         pe_set_seg <=0;
     end else begin
         case (state)
-        IDLE: if (~done) begin
+        IDLE: begin
             // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
-            $display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
+            //$display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
             if (~pe_busy) begin
                 pe_set_busy <= 1;
                 // Reassembler will reset segment line number when segment complete

@@ -111,6 +111,17 @@ initial begin
     $finish;
 end
 
+genvar x, y;
+generate
+    for (x = 0; x < `NOC_X; x = x + 1) begin: map_x
+        for (y = 0; y < `NOC_Y; y = y + 1) begin: map_y
+            wire busy = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_busies[x][y];
+            wire [$clog2(SEG_CNT_TOT)-1:0] seg = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_map[x][y];
+            wire [$clog2(SEG_HEIGHT)-1:0] seg_line = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_line_map[x][y];
+        end
+    end
+endgenerate
+
 reg [7:0] line_temp [0:`IMG_WIDTH-1];
 initial begin
     // Uncomment for value change dump
