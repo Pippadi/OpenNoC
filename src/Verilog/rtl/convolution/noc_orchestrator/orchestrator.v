@@ -36,9 +36,12 @@ module orchestrator
     output reg [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
 
+    // Lines are IMG_WIDTH/SEG_CNT_X pixels wide
+    // Line index in the final image is img_line_out_idx / SEG_CNT_X
+    // Index within a line is img_line_out_idx % SEG_CNT_X
+    output wire [$clog2(IMG_HEIGHT*SEG_CNT_X)-1:0] img_line_out_idx,
+    output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
     // Valid signal asserted for a single cycle
-    output wire [$clog2(SEG_CNT_TOT)-1:0] img_line_out_seg_idx,
-    input [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
     output wire img_line_out_valid,
 
     input wire noc_in_valid,
@@ -110,7 +113,7 @@ conv_dispatcher #(
 
 wire [$clog2(NOC_X)-1:0] reas_pe_x;
 wire [$clog2(NOC_Y)-1:0] reas_pe_y;
-wire reas_line_out_valid;
+wire reas_line_out_valid, reas_inc_pe_seg_line;
 
 reassembler #(
     .PIX_WIDTH(PIX_WIDTH),
@@ -135,11 +138,15 @@ reassembler #(
 
     .out_line_pe_x(reas_pe_x),
     .out_line_pe_y(reas_pe_y),
+
+    .pe_seg_line(pe_seg_line_map[reas_pe_x][reas_pe_y]),
+
     .out_line(img_line_out),
-    .out_line_valid(reas_line_out_valid)
+    .out_line_valid(reas_line_out_valid),
+    .inc_pe_seg_line(reas_inc_pe_seg_line)
 );
 
-assign img_line_out_seg_idx = pe_seg_map[reas_pe_x][reas_pe_y];
+assign img_line_out_idx = pe_seg_map[reas_pe_x][reas_pe_y]*(IMG_HEIGHT/SEG_CNT_Y) + (pe_seg_line_map[reas_pe_x][reas_pe_y]-PADDING_Y);
 assign img_line_out_valid = reas_line_out_valid;
 
 integer x, y;
@@ -153,9 +160,9 @@ always @ (posedge clk) begin
             end
         end
     end else begin
-        if (disp_pe_set_busy && !(disp_pe_x == reas_pe_x && disp_pe_y == reas_pe_y && reas_line_out_valid))
+        if (disp_pe_set_busy && !(disp_pe_x == reas_pe_x && disp_pe_y == reas_pe_y && reas_inc_pe_seg_line))
             pe_busies[disp_pe_x][disp_pe_y] <= 1;
-        else if (reas_line_out_valid) begin
+        else if (reas_inc_pe_seg_line) begin
             pe_busies[reas_pe_x][reas_pe_y] <= 0;
             pe_seg_line_map[reas_pe_x][reas_pe_y] <= (pe_seg_line_map[reas_pe_x][reas_pe_y] == SEG_HEIGHT-1) ? 0 : pe_seg_line_map[reas_pe_x][reas_pe_y] + 1;
         end
@@ -172,8 +179,10 @@ always @ (posedge clk) begin
     if (~rst_n) begin
         recvd_chunk_cnt <= 0;
     end else begin
-        if (noc_in_valid)
+        if (noc_in_valid) begin
+            //$display("Got chunk %d", recvd_chunk_cnt+1);
             recvd_chunk_cnt <= recvd_chunk_cnt + 1;
+        end
     end
 end
 /********************************************/

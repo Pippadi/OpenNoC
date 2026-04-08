@@ -41,10 +41,15 @@ module reassembler
 
     output reg [$clog2(NOC_X)-1:0] out_line_pe_x,
     output reg [$clog2(NOC_Y)-1:0] out_line_pe_y,
+
+    // Combinationally read from out_line_pe_{x,y}
+    input wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line,
+
     // Segment line to be output
     output reg [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] out_line,
     // Assert for one cycle, no acknowledgement needed
-    output reg out_line_valid
+    output reg out_line_valid,
+    output reg inc_pe_seg_line
 );
 
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_in_data[NOC_BIT_WIDTH-1 -: CHUNK_WIDTH*PIX_WIDTH];
@@ -93,6 +98,7 @@ always @ (posedge clk) begin
         out_line_valid <= 0;
         out_line_pe_x <= 0;
         out_line_pe_y <= 0;
+        inc_pe_seg_line <= 0;
         for (i = 0; i < NOC_X; i = i + 1)
             for (j = 0; j < NOC_Y; j = j + 1)
                 buf_line_clears[i][j] <= 0;
@@ -100,8 +106,8 @@ always @ (posedge clk) begin
     end else begin
         case (state)
             IDLE: begin
+                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
                 if (|buf_line_valids) begin
-                    out_line_valid <= 1;
                     out_line_pe_x <= out_line_pe_idx / NOC_Y;
                     out_line_pe_y <= out_line_pe_idx % NOC_Y;
                     state <= OUTPUT;
@@ -109,14 +115,17 @@ always @ (posedge clk) begin
             end
 
             OUTPUT: begin
-                out_line_valid <= 0;
-                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
+                // Don't send vertical padding lines
+                out_line_valid <= pe_seg_line > PADDING_Y && pe_seg_line < (SEG_HEIGHT-PADDING_Y);
+                inc_pe_seg_line <= 1;
                 state <= CLEAR;
             end
 
             CLEAR: begin
+                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
+                out_line_valid <= 0;
+                inc_pe_seg_line <= 1;
                 state <= IDLE;
-                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
             end
         endcase
     end

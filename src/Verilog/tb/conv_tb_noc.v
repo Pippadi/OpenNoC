@@ -38,8 +38,14 @@ localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
 localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
 
 wire done;
+// Input to dispatcher
 wire [$clog2(`IMG_HEIGHT)-1:0] img_line_in_idx;
 wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks received by the dispatcher
+
+// Output from reassembler
+wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx;
+wire [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_out;
+wire img_line_out_valid;
 
 // Directions are from the perspective of the PE
 wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
@@ -73,6 +79,10 @@ conv_pe_insts #(
     // Orchestrator interfaces
     .img_line_in_idx(img_line_in_idx),
     .img_line_in(img[img_line_in_idx]),
+    .img_line_out(img_line_out),
+    .img_line_out_idx(img_line_out_idx),
+    .img_line_out_valid(img_line_out_valid),
+
     // For testing
     .recvd_chunk_cnt(recvd_chunk_cnt),
     .done(done)
@@ -103,6 +113,7 @@ initial begin
     forever #5 clk = ~clk;
 end
 
+/*
 // Timeout for infinite loop and short simulation runs when using dumpvars
 initial begin
     #100000;
@@ -110,6 +121,7 @@ initial begin
     $fclose(file1);
     $finish;
 end
+*/
 
 genvar x, y;
 generate
@@ -153,6 +165,12 @@ initial begin
 
     while (1) begin
         @(posedge clk);
+        if (img_line_out_valid) begin
+            // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
+            $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
+            $fwrite(file1, img_line_out);
+        end
+
         if (recvd_chunk_cnt == SEG_CNT_TOT*SEG_HEIGHT*SEG_WIDTH/`CHUNK_WIDTH) begin
             // All segments sent and processed
             $fclose(file);

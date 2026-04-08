@@ -148,7 +148,7 @@ always @ (posedge clk) begin
              if (tx_line_complete) begin
                  state <= IDLE;
                  next_seg <= next_seg + 1;
-                 done <= next_seg == SEG_CNT_TOT-1;
+                 done <= pe_seg_in == SEG_CNT_TOT-1 && pe_seg_line_no == SEG_HEIGHT-1;
              end
         end
         endcase
