@@ -60,15 +60,15 @@ module conv_dispatcher
 // It handles edge cases for halo pixels by zero-padding when out of bounds.
 localparam SEG_W_NOPAD = IMG_WIDTH / SEG_CNT_X;
 function automatic [SEG_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
-    segment_line[PIX_WIDTH +: PIX_WIDTH*SEG_W_NOPAD] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X) +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
+    segment_line[PIX_WIDTH*PADDING_X +: PIX_WIDTH*SEG_W_NOPAD] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X) +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
     if (seg_idx % SEG_CNT_X == 0)
-        segment_line[PIX_WIDTH-1:0] = 0; // Right halo
+        segment_line[PADDING_X*PIX_WIDTH-1:0] = 0; // Right halo
     else
-        segment_line[PIX_WIDTH-1:0] = img_line[(seg_idx % SEG_CNT_X - 1)*SEG_W_NOPAD*PIX_WIDTH +: PIX_WIDTH]; // Right halo from previous segment
+        segment_line[PADDING_X*PIX_WIDTH-1:0] = img_line[((seg_idx % SEG_CNT_X) - 1)*SEG_W_NOPAD*PIX_WIDTH +: PIX_WIDTH*PADDING_X]; // Right halo from previous segment
     if (seg_idx % SEG_CNT_X == SEG_CNT_X - 1)
-        segment_line[SEG_W_NOPAD*PIX_WIDTH-1 -: PIX_WIDTH] = 0; // Left halo
+        segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = 0; // Left halo
     else
-        segment_line[SEG_W_NOPAD*PIX_WIDTH-1 -: PIX_WIDTH] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X + 1) +: PIX_WIDTH]; // Left halo from next segment
+        segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X + 1) +: PIX_WIDTH*PADDING_X]; // Left halo from next segment
 end
 endfunction
 

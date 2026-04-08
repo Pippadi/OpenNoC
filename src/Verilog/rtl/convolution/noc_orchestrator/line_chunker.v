@@ -40,7 +40,7 @@ always @ (posedge clk) begin
             WAIT_READY: begin
                 if (chunk_out_ready) begin
                     state <= chunk_idx == (LINE_WIDTH/CHUNK_WIDTH - 1) ? COMPLETE : SEND_CHUNK;
-                    chunk_idx <= chunk_idx + 1;
+                    chunk_idx <= (chunk_idx == LINE_WIDTH/CHUNK_WIDTH-1) ? 0 : chunk_idx + 1;
                 end
             end
             COMPLETE: state <= line_valid ? COMPLETE : IDLE;

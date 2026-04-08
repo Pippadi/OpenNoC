@@ -116,7 +116,7 @@ end
 /*
 // Timeout for infinite loop and short simulation runs when using dumpvars
 initial begin
-    #100000;
+    #1000000;
     $fclose(file);
     $fclose(file1);
     $finish;
@@ -136,15 +136,17 @@ endgenerate
 
 reg [7:0] line_temp [0:`IMG_WIDTH-1];
 initial begin
+    /*
     // Uncomment for value change dump
     $dumpfile("conv_tb_noc.vcd");
     $dumpvars(0, conv_tb_noc);
+    */
 
     //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-    //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-    //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-    file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-    file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+    file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+    file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+    //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+    //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(file1, "%c", imgData);
@@ -168,7 +170,8 @@ initial begin
         if (img_line_out_valid) begin
             // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
             $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
-            $fwrite(file1, img_line_out);
+            for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1)
+                $fwrite(file1, "%c", img_line_out[8*i +: 8]);
         end
 
         if (recvd_chunk_cnt == SEG_CNT_TOT*SEG_HEIGHT*SEG_WIDTH/`CHUNK_WIDTH) begin

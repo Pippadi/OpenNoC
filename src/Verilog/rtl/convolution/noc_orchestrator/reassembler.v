@@ -46,7 +46,7 @@ module reassembler
     input wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line,
 
     // Segment line to be output
-    output reg [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] out_line,
+    output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] out_line,
     // Assert for one cycle, no acknowledgement needed
     output reg out_line_valid,
     output reg inc_pe_seg_line
@@ -58,7 +58,7 @@ wire [$clog2(NOC_X)-1:0] pe_x_idx = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y))-
 wire [$clog2(NOC_Y)-1:0] pe_y_idx = noc_in_data[($clog2(NOC_X)+$clog2(NOC_Y)) +: $clog2(NOC_Y)];
 
 reg buf_line_clears [0:NOC_X-1][0:NOC_Y-1];
-reg [SEG_WIDTH*PIX_WIDTH-1:0] buf_line_outs [0:NOC_X-1][0:NOC_Y-1];
+wire [SEG_WIDTH*PIX_WIDTH-1:0] buf_line_outs [0:NOC_X-1][0:NOC_Y-1];
 wire [NOC_X*NOC_Y-1:0] buf_line_valids;
 genvar x, y;
 generate
@@ -135,6 +135,6 @@ end
 // but that's highly unlikely.
 assign noc_in_ready = ~(state == OUTPUT && out_line_pe_x == pe_x_idx && out_line_pe_y == pe_y_idx);
 
-assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y][(SEG_WIDTH-PADDING_X)*PIX_WIDTH : PADDING_X*PIX_WIDTH];
+assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y][(SEG_WIDTH-PADDING_X)*PIX_WIDTH-1 : PADDING_X*PIX_WIDTH];
 
 endmodule

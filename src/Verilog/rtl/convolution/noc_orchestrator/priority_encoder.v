@@ -8,12 +8,15 @@ module priority_encoder
 );
 
 integer i;
+reg found;
 
 always @ (in) begin
+    found = 0;
+    out = 0;
     for (i = N-1; i >= 0; i = i - 1) begin
-        if (in[i]) begin
+        if (in[i] & ~found) begin
             out = i;
-            break;
+            found = 1;
         end
     end
 end

@@ -33,7 +33,7 @@ module orchestrator
     input clk,
 
     // Combinationally read
-    output reg [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
+    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
 
     // Lines are IMG_WIDTH/SEG_CNT_X pixels wide
