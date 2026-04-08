@@ -72,7 +72,7 @@ function automatic [SEG_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_W
 end
 endfunction
 
-reg [$clog2(SEG_CNT_TOT)-1:0] next_seg;
+reg [$clog2(SEG_CNT_TOT+1):0] next_seg;
 
 reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line;
 always @ (*) begin
@@ -124,10 +124,12 @@ always @ (posedge clk) begin
         IDLE: if (~done) begin
             // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
             //$display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
-            if (~pe_busy) begin
+
+            // Make sure we leave idle PEs alone when we're waiting for the last segment to get done
+            if (!pe_busy && !(next_seg == SEG_CNT_TOT && pe_seg_line_no != 0)) begin
                 pe_set_busy <= 1;
-                // Reassembler will reset segment line number when segment complete
-                pe_set_seg  <= pe_seg_line_no == 0;
+                // Set segment number if this is a new segment
+                pe_set_seg <= pe_seg_line_no == 0;
                 state <= SEND;
             end else begin
                 pe_set_busy <= 0;
@@ -139,6 +141,9 @@ always @ (posedge clk) begin
                 end else
                     pe_idx_y <= pe_idx_y + 1;
             end
+        end else begin
+            pe_set_busy <= 0;
+            pe_set_seg <= 0;
         end
 
         // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.

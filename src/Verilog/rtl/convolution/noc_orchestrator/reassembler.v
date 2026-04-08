@@ -96,6 +96,7 @@ localparam IDLE = 2'b00, OUTPUT = 2'b01, CLEAR = 2'b10;
 always @ (posedge clk) begin
     if (~rst_n) begin
         out_line_valid <= 0;
+        inc_pe_seg_line <= 0;
         out_line_pe_x <= 0;
         out_line_pe_y <= 0;
         for (i = 0; i < NOC_X; i = i + 1)
@@ -105,6 +106,8 @@ always @ (posedge clk) begin
     end else begin
         case (state)
             IDLE: begin
+                out_line_valid <= 0;
+                inc_pe_seg_line <= 0;
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
                 if (|buf_line_valids) begin
                     out_line_pe_x <= out_line_pe_idx / NOC_Y;

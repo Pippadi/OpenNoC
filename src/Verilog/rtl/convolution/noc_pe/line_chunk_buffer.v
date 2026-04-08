@@ -22,7 +22,7 @@ module line_chunk_buffer
     output wire line_valid
 );
 
-reg [$clog2(LINE_WIDTH/CHUNK_WIDTH)-1:0] chunks_received;
+reg [LINE_WIDTH/CHUNK_WIDTH-1:0] chunks_received;
 assign line_valid = chunks_received == LINE_WIDTH/CHUNK_WIDTH;
 
 always @ (posedge clk) begin
@@ -30,7 +30,7 @@ always @ (posedge clk) begin
         line <= {(LINE_WIDTH*PIX_WIDTH){1'b0}};
         chunks_received <= 0;
     end else begin
-        if (chunk_avail) begin
+        if (chunk_avail & ~line_valid) begin
             line[chunk_idx*CHUNK_WIDTH +: CHUNK_WIDTH] <= chunk;
             chunks_received <= chunks_received + 1;
         end
