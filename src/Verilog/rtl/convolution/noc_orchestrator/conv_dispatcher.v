@@ -150,11 +150,11 @@ always @ (posedge clk) begin
         SEND: begin
             pe_set_busy <= 0;
             pe_set_seg <= 0;
-             if (tx_line_complete) begin
-                 state <= IDLE;
-                 next_seg <= (pe_seg_line_no == 0) ? next_seg + 1 : next_seg;
-                 done <= pe_seg_in == SEG_CNT_TOT-1 && pe_seg_line_no == SEG_HEIGHT-1;
-             end
+            if (tx_line_complete) begin
+                state <= IDLE;
+                next_seg <= (pe_seg_line_no == 0) ? next_seg + 1 : next_seg;
+                done <= pe_seg_in == SEG_CNT_TOT-1 && pe_seg_line_no == SEG_HEIGHT-1;
+            end
         end
         endcase
     end

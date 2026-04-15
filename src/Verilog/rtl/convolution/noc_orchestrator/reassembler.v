@@ -57,9 +57,14 @@ wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] chunk_in_idx = noc_in_data[2*($clog2(NO
 wire [$clog2(NOC_X)-1:0] pe_x_idx = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y))-1 -: $clog2(NOC_X)];
 wire [$clog2(NOC_Y)-1:0] pe_y_idx = noc_in_data[($clog2(NOC_X)+$clog2(NOC_Y)) +: $clog2(NOC_Y)];
 
+initial begin
+    $monitor("Chunk %d %h from x%d y%d for line %d", chunk_in_idx, chunk_in, pe_x_idx, pe_y_idx, pe_seg_line);
+end
+
 reg buf_line_clears [0:NOC_X-1][0:NOC_Y-1];
 wire [SEG_WIDTH*PIX_WIDTH-1:0] buf_line_outs [0:NOC_X-1][0:NOC_Y-1];
 wire [NOC_X*NOC_Y-1:0] buf_line_valids;
+assign buf_line_valids[0] = 0; // Unused
 genvar x, y;
 generate
     for (x = 0; x < NOC_X; x = x + 1) begin : gen_pe_x
@@ -92,7 +97,7 @@ priority_encoder #(.N(NOC_X*NOC_Y)) LineValidEncoder (
 
 integer i, j;
 reg [1:0] state;
-localparam IDLE = 2'b00, OUTPUT = 2'b01, CLEAR = 2'b10;
+localparam IDLE = 2'b00, OUTPUT = 2'b01, CLEAR = 2'b10, WAIT_CLEAR = 2'b11;
 always @ (posedge clk) begin
     if (~rst_n) begin
         out_line_valid <= 0;
@@ -127,6 +132,11 @@ always @ (posedge clk) begin
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
                 out_line_valid <= 0;
                 inc_pe_seg_line <= 0;
+                state <= WAIT_CLEAR;
+            end
+
+            WAIT_CLEAR: begin // Give the line chunk buffer a cycle to set its valid signal to 0
+                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
                 state <= IDLE;
             end
         endcase
