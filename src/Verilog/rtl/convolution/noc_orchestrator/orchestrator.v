@@ -146,7 +146,7 @@ reassembler #(
     .inc_pe_seg_line(reas_inc_pe_seg_line)
 );
 
-assign img_line_out_idx = pe_seg_map[reas_pe_x][reas_pe_y]*(IMG_HEIGHT/SEG_CNT_Y) + (pe_seg_line_map[reas_pe_x][reas_pe_y]-PADDING_Y);
+assign img_line_out_idx = (pe_seg_map[reas_pe_x][reas_pe_y]/SEG_CNT_X)*(IMG_HEIGHT/SEG_CNT_Y) + (pe_seg_line_map[reas_pe_x][reas_pe_y]-PADDING_Y);
 assign img_line_out_valid = reas_line_out_valid;
 
 integer x, y;

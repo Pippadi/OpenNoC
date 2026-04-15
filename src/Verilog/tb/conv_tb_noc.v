@@ -78,122 +78,122 @@ conv_pe_insts #(
 
     // Orchestrator interfaces
     .img_line_in_idx(img_line_in_idx),
-        .img_line_in(img[img_line_in_idx]),
-        .img_line_out(img_line_out),
-        .img_line_out_idx(img_line_out_idx),
-        .img_line_out_valid(img_line_out_valid),
+    .img_line_in(img[img_line_in_idx]),
+    .img_line_out(img_line_out),
+    .img_line_out_idx(img_line_out_idx),
+    .img_line_out_valid(img_line_out_valid),
 
-        // For testing
-        .recvd_chunk_cnt(recvd_chunk_cnt),
-            .done(done)
-        );
+    // For testing
+    .recvd_chunk_cnt(recvd_chunk_cnt),
+        .done(done)
+    );
 
-        openNocTop #(
-            .X(`NOC_X),
-            .Y(`NOC_Y),
-            .data_width(NOC_BIT_WIDTH-$clog2(`NOC_X)-$clog2(`NOC_Y)),
-            .total_width(NOC_BIT_WIDTH),
-            .if_width(NOC_BIT_WIDTH*`NOC_X*`NOC_Y),
-            .pkt_no_field_size(0)
-        ) NoC (
-            .clk(clk),
-            .rstn(rst_n),
+    openNocTop #(
+        .X(`NOC_X),
+        .Y(`NOC_Y),
+        .data_width(NOC_BIT_WIDTH-$clog2(`NOC_X)-$clog2(`NOC_Y)),
+        .total_width(NOC_BIT_WIDTH),
+        .if_width(NOC_BIT_WIDTH*`NOC_X*`NOC_Y),
+        .pkt_no_field_size(0)
+    ) NoC (
+        .clk(clk),
+        .rstn(rst_n),
 
-            .r_data_pe(noc_out_datas),
-            .r_valid_pe(noc_out_valids),
-            .r_ready_pe(noc_out_readies),
+        .r_data_pe(noc_out_datas),
+        .r_valid_pe(noc_out_valids),
+        .r_ready_pe(noc_out_readies),
 
-            .w_ready_pe(noc_in_readies),
-            .w_data_pe(noc_in_datas),
-            .w_valid_pe(noc_in_valids)
-        );
+        .w_ready_pe(noc_in_readies),
+        .w_data_pe(noc_in_datas),
+        .w_valid_pe(noc_in_valids)
+    );
 
-        initial begin
-            clk = 1'b0;
-            forever #5 clk = ~clk;
+    initial begin
+        clk = 1'b0;
+        forever #5 clk = ~clk;
+    end
+
+    /*
+    // Timeout for infinite loop and short simulation runs when using dumpvars
+    initial begin
+        #1000000;
+        $fclose(file);
+        $fclose(file1);
+        $finish;
+    end
+    */
+
+    genvar x, y;
+    generate
+        for (x = 0; x < `NOC_X; x = x + 1) begin: map_x
+            for (y = 0; y < `NOC_Y; y = y + 1) begin: map_y
+                wire busy = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_busies[x][y];
+                wire [$clog2(SEG_CNT_TOT)-1:0] seg = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_map[x][y];
+                wire [$clog2(SEG_HEIGHT)-1:0] seg_line = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_line_map[x][y];
+            end
+        end
+    endgenerate
+
+    reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_out [0:`IMG_HEIGHT*`SEG_CNT_X-1];
+    reg [7:0] line_temp [0:`IMG_WIDTH-1];
+
+    initial begin
+        // Uncomment for value change dump
+        $dumpfile("conv_tb_noc.vcd");
+        $dumpvars(0, conv_tb_noc);
+
+        file = $fopen("../../../data/gray_8x8.pgm", "rb");
+        file1 = $fopen("../../../data/out_gray_8x8.pgm", "wb");
+        //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
+        //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
+        //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
+        //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+        for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
+            $fscanf(file, "%c", imgData);
+            $fwrite(file1, "%c", imgData);
         end
 
-        /*
-        // Timeout for infinite loop and short simulation runs when using dumpvars
-        initial begin
-            #1000000;
-            $fclose(file);
-            $fclose(file1);
-            $finish;
+        // Have to do this, because $fread's count argument is too small to read all of it at once
+        for (i = 0; i < `IMG_HEIGHT; i = i + 1) begin
+            $fread(line_temp, file, 0, `IMG_WIDTH);
+            for (j = 0; j < `IMG_WIDTH; j = j + 1) begin
+                img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
+            end
         end
-        */
 
-       genvar x, y;
-       generate
-           for (x = 0; x < `NOC_X; x = x + 1) begin: map_x
-               for (y = 0; y < `NOC_Y; y = y + 1) begin: map_y
-                   wire busy = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_busies[x][y];
-                   wire [$clog2(SEG_CNT_TOT)-1:0] seg = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_map[x][y];
-                   wire [$clog2(SEG_HEIGHT)-1:0] seg_line = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_line_map[x][y];
-               end
-           end
-       endgenerate
+        rst_n = 0;
+        #100;
+        rst_n = 1;
+        #100;
 
-       reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_out [0:`IMG_HEIGHT*`SEG_CNT_X-1];
-       reg [7:0] line_temp [0:`IMG_WIDTH-1];
+        line_recvd_cnt = 0;
+        while (1) begin
+            @(posedge clk);
+            if (img_line_out_valid) begin
+                line_recvd_cnt = line_recvd_cnt + 1;
+                $display("%d", img_line_out_idx);
+                img_out[img_line_out_idx] = img_line_out;
+                /*
+                // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
+                $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
+                for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1)
+                    $fwrite(file1, "%c", img_line_out[8*i +: 8]);
+                */
+            end
 
-       initial begin
-           // Uncomment for value change dump
-           $dumpfile("conv_tb_noc.vcd");
-           $dumpvars(0, conv_tb_noc);
+            if (line_recvd_cnt == `IMG_HEIGHT*`SEG_CNT_X) begin
+                // All segments sent and processed
+                for (j = 0; j < (`IMG_HEIGHT*`SEG_CNT_X); j = j + 1) begin
+                    for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1) begin
+                        $fwrite(file1, "%c", img_out[j][8*i +: 8]);
+                    end
+                end
 
-          file = $fopen("../../../data/gray_8x8.pgm", "rb");
-          file1 = $fopen("../../../data/out_gray_8x8.pgm", "wb");
-          //file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-          //file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-          //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-          //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
-          for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
-              $fscanf(file, "%c", imgData);
-              $fwrite(file1, "%c", imgData);
-          end
+                $fclose(file);
+                $fclose(file1);
+                $finish;
+            end
+        end
+    end
 
-          // Have to do this, because $fread's count argument is too small to read all of it at once
-          for (i = 0; i < `IMG_HEIGHT; i = i + 1) begin
-              $fread(line_temp, file, 0, `IMG_WIDTH);
-              for (j = 0; j < `IMG_WIDTH; j = j + 1) begin
-                  img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
-              end
-          end
-
-          rst_n = 0;
-          #100;
-          rst_n = 1;
-          #100;
-
-          line_recvd_cnt = 0;
-          while (1) begin
-              @(posedge clk);
-              if (img_line_out_valid) begin
-                  line_recvd_cnt = line_recvd_cnt + 1;
-                  $display("%d", img_line_out_idx);
-                  img_out[img_line_out_idx] = img_line_out;
-                  /*
-                  // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
-                  $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
-                  for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1)
-                      $fwrite(file1, "%c", img_line_out[8*i +: 8]);
-                  */
-             end
-
-             if (line_recvd_cnt == `IMG_HEIGHT*`SEG_CNT_X) begin
-                 // All segments sent and processed
-                 for (j = 0; j < (`IMG_HEIGHT*`SEG_CNT_X); j = j + 1) begin
-                     for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1) begin
-                         $fwrite(file1, "%c", img_out[j][8*i +: 8]);
-                     end
-                 end
-
-                 $fclose(file);
-                 $fclose(file1);
-                 $finish;
-             end
-         end
-     end
-
-     endmodule
+    endmodule
