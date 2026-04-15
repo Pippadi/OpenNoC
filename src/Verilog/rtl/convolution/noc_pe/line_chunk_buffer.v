@@ -31,7 +31,7 @@ always @ (posedge clk) begin
         chunks_received <= 0;
     end else begin
         if (chunk_avail & ~line_valid) begin
-            line[chunk_idx*CHUNK_WIDTH +: CHUNK_WIDTH] <= chunk;
+            line[chunk_idx*CHUNK_WIDTH*PIX_WIDTH +: CHUNK_WIDTH*PIX_WIDTH] <= chunk;
             chunks_received <= chunks_received + 1;
         end
     end
