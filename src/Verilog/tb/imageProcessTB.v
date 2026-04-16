@@ -35,8 +35,10 @@ integer rtn1;
 reg rst;
 initial
 begin
-file=$fopen("../../../../../../../data/lena512.bmp","rb");
-file1=$fopen("../../../../../../../data/outputLena.bmp","wb");
+file = $fopen("../../../../../../../data/peppers512.bmp", "rb");
+file1 = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
+//file = $fopen("../../../data/peppers512.bmp","rb");       // Uncomment when
+//file1 = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog
 if(file == 0)
 begin
     $display("Cannot open the image file");
@@ -47,7 +49,7 @@ end
 for(i=0;i<`headerSize;i=i+1)
  begin
    rtn = $fscanf(file,"%c",header);
-   $fwrite(file1,"%c",header);  
+   $fwrite(file1,"%c",header);
  end
 
 //while(!$feof(file))
@@ -59,12 +61,12 @@ begin
    o_data[x*8+:8]=image_data;
    $fwrite(file1,"%c",o_data[x*8+:8]);
   end
-end  
+end
 
 $fclose(file);
 $fclose(file1);
 
-*/ 
+*/
 
  clk = 1'b0;
  counter=0;
@@ -97,7 +99,7 @@ always @(posedge clk)
       end
     end
    else
-     begin   
+     begin
        $fclose(file);
        $fclose(file1);
 		 $stop;
@@ -136,7 +138,7 @@ begin
         tb_i_valid_pci<=1'b0;
  end
 
- 
+
 integer y;
 always @(posedge clk)
 begin
@@ -198,7 +200,6 @@ pT(
 
 
 
- 
- 
-endmodule
 
+
+endmodule

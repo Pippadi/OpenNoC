@@ -56,10 +56,10 @@ initial begin
    reset = 1;
    #100;
    //file = $fopen("../../../../../../../data/gray_512x512.bmp", "rb");
-   file = $fopen("../../../../../../../data/lena512.bmp", "rb");
-   file1 = $fopen("../../../../../../../data/outputLena.bmp", "wb");
-   //file = $fopen("../../../data/lena512.bmp","rb");       // Uncomment when
-   //file1 = $fopen("../../../data/outputLena.bmp","wb");   // using Icarus Verilog
+   file = $fopen("../../../../../../../data/peppers512.bmp", "rb");
+   file1 = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
+   //file = $fopen("../../../data/peppers512.bmp","rb");       // Uncomment when
+   //file1 = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog
    for (i = 0; i < `headerSize; i = i + 1) begin
        $fscanf(file, "%c", imgData);
        $fwrite(file1, "%c", imgData);
@@ -130,4 +130,3 @@ conv_unit #(
 );
 
 endmodule
-
