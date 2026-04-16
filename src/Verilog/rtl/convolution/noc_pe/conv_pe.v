@@ -133,7 +133,7 @@ output_chunker #(
 );
 
 // Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
-assign noc_out_data = {output_chunk, output_chunk_ctr, NOC_ADDR_X[$clog2(NOC_X)-1:0], NOC_ADDR_Y[$clog2(NOC_Y)-1:0], NOC_REASSEMBLER_ADDR_X[$clog2(NOC_X)-1:0], NOC_REASSEMBLER_ADDR_Y[$clog2(NOC_Y)-1:0]};
+assign noc_out_data = {output_chunk, output_chunk_ctr, NOC_ADDR_Y[$clog2(NOC_Y)-1:0], NOC_ADDR_X[$clog2(NOC_X)-1:0], NOC_REASSEMBLER_ADDR_Y[$clog2(NOC_Y)-1:0], NOC_REASSEMBLER_ADDR_X[$clog2(NOC_X)-1:0]};
 assign noc_in_ready = state == S_IDLE;
 
 always @ (posedge clk) begin

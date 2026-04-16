@@ -126,7 +126,7 @@ always @ (posedge clk) begin
             //$display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
 
             // Make sure we leave idle PEs alone when we're waiting for the last segment to get done
-            if (!pe_busy && !(next_seg == SEG_CNT_TOT && pe_seg_line_no != 0)) begin
+            if (!pe_busy && !(next_seg == SEG_CNT_TOT && pe_seg_line_no == 0)) begin
                 pe_set_busy <= 1;
                 // Set segment number if this is a new segment
                 pe_set_seg <= pe_seg_line_no == 0;
@@ -167,7 +167,7 @@ assign tx_chunk_ready = noc_out_ready;
 
 // Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
 assign noc_out_data = (state == SEND) ?
-    {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_X){1'b0}}, {$clog2(NOC_Y){1'b0}}, pe_idx_x, pe_idx_y} :
+    {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_Y){1'b0}}, {$clog2(NOC_X){1'b0}}, pe_idx_y, pe_idx_x} :
     {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
 
