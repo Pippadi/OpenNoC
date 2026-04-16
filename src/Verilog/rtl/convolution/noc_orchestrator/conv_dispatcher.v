@@ -165,7 +165,7 @@ assign pe_seg_out = next_seg;
 assign tx_line_valid = (state == SEND);
 assign tx_chunk_ready = noc_out_ready;
 
-// Pixel data, Chunk index, Source X, Source Y, Dest X, Dest Y,
+// Pixel data, Chunk index, Source Y, Source X, Dest Y, Dest X
 assign noc_out_data = (state == SEND) ?
     {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_Y){1'b0}}, {$clog2(NOC_X){1'b0}}, pe_idx_y, pe_idx_x} :
     {NOC_BIT_WIDTH{1'b0}};

@@ -146,7 +146,11 @@ reassembler #(
     .inc_pe_seg_line(reas_inc_pe_seg_line)
 );
 
-assign img_line_out_idx = (pe_seg_map[reas_pe_x][reas_pe_y]/SEG_CNT_X)*(IMG_HEIGHT/SEG_CNT_Y) + (pe_seg_line_map[reas_pe_x][reas_pe_y]-PADDING_Y);
+// I do not understand how to specify size for multiplications like this
+wire [$clog2(SEG_CNT_Y)-1:0] seg_y_idx = pe_seg_map[reas_pe_x][reas_pe_y] / SEG_CNT_X;
+wire [$clog2(IMG_HEIGHT)-1:0] img_y_idx = seg_y_idx * (IMG_HEIGHT/SEG_CNT_Y) + (pe_seg_line_map[reas_pe_x][reas_pe_y]-PADDING_Y);
+wire [$clog2(SEG_CNT_X)-1:0] seg_x_idx = pe_seg_map[reas_pe_x][reas_pe_y] % SEG_CNT_Y;
+assign img_line_out_idx = (img_y_idx * SEG_CNT_X) + seg_x_idx;
 assign img_line_out_valid = reas_line_out_valid;
 
 integer x, y;

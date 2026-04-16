@@ -171,20 +171,21 @@ conv_pe_insts #(
             @(posedge clk);
             if (img_line_out_valid) begin
                 line_recvd_cnt = line_recvd_cnt + 1;
-                $display("%d", img_line_out_idx);
+                $display("%d %x", img_line_out_idx, img_line_out);
                 img_out[img_line_out_idx] = img_line_out;
                 /*
                 // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
                 $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
-                for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1)
+                for (i = 0; i < `IMG_WIDTH/`SEG_CNT_X; i = i + 1)
                     $fwrite(file1, "%c", img_line_out[8*i +: 8]);
                 */
             end
 
             if (line_recvd_cnt == `IMG_HEIGHT*`SEG_CNT_X) begin
                 // All segments sent and processed
-                for (j = 0; j < (`IMG_HEIGHT*`SEG_CNT_X); j = j + 1) begin
-                    for (i = 0; i < (`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH/8; i = i + 1) begin
+                for (j = 0; j < `IMG_HEIGHT*`SEG_CNT_X; j = j + 1) begin
+                    $display("%x", img_out[j]);
+                    for (i = 0; i < `IMG_WIDTH/`SEG_CNT_X; i = i + 1) begin
                         $fwrite(file1, "%c", img_out[j][8*i +: 8]);
                     end
                 end
