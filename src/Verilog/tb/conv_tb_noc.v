@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
-`define BMP_HEADER_SIZE 11
-//`define BMP_HEADER_SIZE 1078
-`define IMG_WIDTH 8
-`define IMG_HEIGHT 8
+//`define BMP_HEADER_SIZE 11
+`define BMP_HEADER_SIZE 1078
+`define IMG_WIDTH 512
+`define IMG_HEIGHT 512
 `define PIX_WIDTH 8
 
 // Most widths are in pixels, unless specified.
@@ -27,7 +27,7 @@ module conv_tb_noc();
 reg clk;
 reg rst_n;
 reg [`PIX_WIDTH-1:0] imgData;
-integer file, file1, i, j, line_recvd_cnt;
+integer file, out_file, i, j, line_recvd_cnt;
 
 reg [`IMG_WIDTH*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT-1];
 
@@ -119,7 +119,7 @@ conv_pe_insts #(
     initial begin
         #1000000;
         $fclose(file);
-        $fclose(file1);
+        $fclose(out_file);
         $finish;
     end
     */
@@ -139,18 +139,20 @@ conv_pe_insts #(
 
     initial begin
         // Uncomment for value change dump
+        /*
         $dumpfile("conv_tb_noc.fst");
         $dumpvars(0, conv_tb_noc);
+        */
 
-        file = $fopen("../../../data/gray_8x8.pgm", "rb");
-        file1 = $fopen("../../../data/out_gray_8x8.pgm", "wb");
+        //file = $fopen("../../../data/gray_8x8.pgm", "rb");
+        //out_file = $fopen("../../../data/out_gray_8x8.pgm", "wb");
         //file = $fopen("../../../../../../../data/peppers512.bmp", "rb");
-        //file1 = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
-        //file = $fopen("../../../data/peppers512.bmp","rb");       // Uncomment when
-        //file1 = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
+        //out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
+        file = $fopen("../../../data/peppers512.bmp","rb");       // Uncomment when
+        out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
         for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
             $fscanf(file, "%c", imgData);
-            $fwrite(file1, "%c", imgData);
+            $fwrite(out_file, "%c", imgData);
         end
 
         // Have to do this, because $fread's count argument is too small to read all of it at once
@@ -173,14 +175,14 @@ conv_pe_insts #(
                 line_recvd_cnt = line_recvd_cnt + 1;
                 $display("%d %x", img_line_out_idx, img_line_out);
                 // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
-                $fseek(file1, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
+                $fseek(out_file, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
                 for (i = 0; i < `IMG_WIDTH/`SEG_CNT_X; i = i + 1)
-                    $fwrite(file1, "%c", img_line_out[8*i +: 8]);
+                    $fwrite(out_file, "%c", img_line_out[8*i +: 8]);
             end
 
             if (line_recvd_cnt == `IMG_HEIGHT*`SEG_CNT_X) begin
                 $fclose(file);
-                $fclose(file1);
+                $fclose(out_file);
                 $finish;
             end
         end

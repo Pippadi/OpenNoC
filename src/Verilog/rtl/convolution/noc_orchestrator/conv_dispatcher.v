@@ -58,13 +58,18 @@ module conv_dispatcher
 
 reg [$clog2(SEG_CNT_TOT+1):0] next_seg;
 
-// Extracts the appropriate line segment with halo pixels for the given segment index.
-// Handles edge cases for halo pixels by zero-padding when out of bounds.
+/*** Image Segmenting ***/
+
+// Offset within segment + (Y component of segment * segment height)
+assign img_line_idx = pe_seg_line_no + ((pe_seg_in / SEG_CNT_X) * (IMG_HEIGHT/SEG_CNT_Y));
+
+// Extracts the appropriate line segment, and adds halo pixels for zero padding.
 localparam SEG_W_NOPAD = IMG_WIDTH / SEG_CNT_X;
+reg [$clog2(SEG_CNT_TOT)-1:0] current_pe_seg; // Set before sending, see below
 reg [SEG_WIDTH*PIX_WIDTH-1:0] segment_line;
 reg [$clog2(SEG_CNT_X)-1:0] seg_idx_x;
 always @ (*) begin
-    seg_idx_x = SEG_CNT_X - 1 - (next_seg % SEG_CNT_X);
+    seg_idx_x = current_pe_seg % SEG_CNT_X;
     segment_line[PIX_WIDTH*PADDING_X +: PIX_WIDTH*SEG_W_NOPAD] = img_line_in[SEG_W_NOPAD*PIX_WIDTH*seg_idx_x +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
     if (seg_idx_x == 0)
         segment_line[PADDING_X*PIX_WIDTH-1:0] = 0; // Right halo
@@ -76,17 +81,15 @@ always @ (*) begin
         segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = img_line_in[SEG_W_NOPAD*PIX_WIDTH*(seg_idx_x + 1) +: PIX_WIDTH*PADDING_X]; // Left halo from next segment
 end
 
-reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line;
-always @ (*) begin
-    // Offset within segment + (Y component of segment * segment height)
-    img_line_idx = pe_seg_line_no + ((pe_seg_in / SEG_CNT_X) * (IMG_HEIGHT/SEG_CNT_Y));
+// If the line number within the segment is 0, and the segment is at the top of
+// the image, or the segment line number is the bottommost, and the segment is
+// along the bottom of the image, the line must be zero (zero padding).
+wire line_is_top_bottom =
+    (pe_seg_in / SEG_CNT_X == 0 && pe_seg_line_no == 0) ||
+    (pe_seg_in / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no == SEG_HEIGHT-1);
+reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line; // Set when sending, see below
 
-    if ((pe_seg_in / SEG_CNT_X == 0 && pe_seg_line_no == 0) ||
-        (pe_seg_in / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no == SEG_HEIGHT-1))
-        current_segment_line = {SEG_WIDTH{{PIX_WIDTH{1'b0}}}};
-    else
-        current_segment_line = segment_line;
-end
+/*** Segment Dispatching ***/
 
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_chunk_out;
 wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] tx_chunk_idx;
@@ -110,8 +113,8 @@ line_chunker #(
     .complete(tx_line_complete)
 );
 
-reg state;
-localparam IDLE = 1'b0, SEND = 1'b1;
+reg [1:0] state;
+localparam IDLE = 2'b00, CALC_SEGMENT = 2'b01, SEND = 2'b10;
 always @ (posedge clk) begin
     if (~rst_n) begin
         done <= 0;
@@ -120,7 +123,9 @@ always @ (posedge clk) begin
         pe_idx_x <= 0;
         pe_idx_y <= 1;
         pe_set_busy <= 0;
-        pe_set_seg <=0;
+        pe_set_seg <= 0;
+        current_pe_seg <= 0;
+        current_segment_line <= {SEG_WIDTH{{PIX_WIDTH{1'b0}}}};
     end else begin
         case (state)
         IDLE: if (~done) begin
@@ -132,7 +137,10 @@ always @ (posedge clk) begin
                 pe_set_busy <= 1;
                 // Set segment number if this is a new segment
                 pe_set_seg <= pe_seg_line_no == 0;
-                state <= SEND;
+                // We need segment number for segment calculation, but the map in the orchestrator
+                // will be updated one cycle too late, so we're storing it here
+                current_pe_seg <= (pe_seg_line_no == 0) ? next_seg : pe_seg_in;
+                state <= CALC_SEGMENT;
             end else begin
                 pe_set_busy <= 0;
                 pe_set_seg <= 0;
@@ -148,6 +156,13 @@ always @ (posedge clk) begin
             pe_set_seg <= 0;
         end
 
+        CALC_SEGMENT: begin
+            pe_set_busy <= 0;
+            pe_set_seg <= 0;
+            current_segment_line <= line_is_top_bottom ? {SEG_WIDTH{{PIX_WIDTH{1'b0}}}} : segment_line;
+            state <= SEND;
+        end
+
         // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.
         SEND: begin
             pe_set_busy <= 0;
@@ -158,6 +173,8 @@ always @ (posedge clk) begin
                 done <= pe_seg_in == SEG_CNT_TOT-1 && pe_seg_line_no == SEG_HEIGHT-1;
             end
         end
+
+        default: state <= IDLE;
         endcase
     end
 end

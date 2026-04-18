@@ -8,5 +8,7 @@ verilator -cc \
     ../rtl/openNoc/src/*.v \
     --binary --trace-fst \
     -Wno-CASEX -Wno-CASEOVERLAP -Wno-CASEINCOMPLETE -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC \
-    -j $(nproc)
+    -j $(nproc) \
+    && \
+
 ./obj_dir/Vconv_tb_noc
