@@ -17,8 +17,8 @@ module conv_pe_insts
     parameter KERN_X = 3,
     parameter KERN_Y = 3,
 
-    localparam PADDING_X = KERN_X / 2,
-    localparam PADDING_Y = KERN_Y / 2,
+    localparam PADDING_X = (KERN_X / 2) * 2,
+    localparam PADDING_Y = (KERN_Y / 2) * 2,
 
     localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X + 2*PADDING_X,
     localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2*PADDING_Y,

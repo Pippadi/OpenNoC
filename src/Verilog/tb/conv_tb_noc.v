@@ -11,9 +11,9 @@
 // Each PE processes a segment of the image. Each segment is fed line-by-line to the PEs.
 // These lines are sent chunk-by-chunk over the NoC. Because NoC width is the ultimate parameter we want
 // to optimize for, we parameterize the chunk width separately from the segment width.
-// Segment width is calculated as IMG_WIDTH / (SEG_CNT_X + floor(KERN_X/2)). Ensure CHUNK_WIDTH evenly
+// Segment width is calculated as (IMG_WIDTH / SEG_CNT_X) + (floor(KERN_X/2) * 4). Ensure CHUNK_WIDTH evenly
 // divides segment width.
-`define CHUNK_WIDTH 3 // In pixels
+`define CHUNK_WIDTH 13 // In pixels
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 2
 `define NOC_X 2 // NoC X dimension (number of columns of PEs)
@@ -31,8 +31,8 @@ integer file, out_file, i, j, line_recvd_cnt;
 
 reg [`IMG_WIDTH*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT-1];
 
-localparam PADDING_X = `KERN_X / 2;
-localparam PADDING_Y = `KERN_Y / 2;
+localparam PADDING_X = (`KERN_X / 2) * 2;
+localparam PADDING_Y = (`KERN_Y / 2) * 2;
 localparam SEG_WIDTH = `IMG_WIDTH / `SEG_CNT_X + 2*PADDING_X;
 localparam SEG_HEIGHT = `IMG_HEIGHT / `SEG_CNT_Y + 2*PADDING_Y;
 localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
