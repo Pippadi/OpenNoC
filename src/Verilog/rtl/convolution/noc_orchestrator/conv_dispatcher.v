@@ -56,23 +56,25 @@ module conv_dispatcher
     output reg done
 );
 
-// segment_line extracts the appropriate line segment with halo pixels for the given segment index.
-// It handles edge cases for halo pixels by zero-padding when out of bounds.
+reg [$clog2(SEG_CNT_TOT+1):0] next_seg;
+
+// Extracts the appropriate line segment with halo pixels for the given segment index.
+// Handles edge cases for halo pixels by zero-padding when out of bounds.
 localparam SEG_W_NOPAD = IMG_WIDTH / SEG_CNT_X;
-function automatic [SEG_WIDTH*PIX_WIDTH-1:0] segment_line(input [IMG_WIDTH*PIX_WIDTH-1:0] img_line, input reg [$clog2(SEG_CNT_TOT)-1:0] seg_idx); begin
-    segment_line[PIX_WIDTH*PADDING_X +: PIX_WIDTH*SEG_W_NOPAD] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X) +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
-    if (seg_idx % SEG_CNT_X == 0)
+reg [SEG_WIDTH*PIX_WIDTH-1:0] segment_line;
+reg [$clog2(SEG_CNT_X)-1:0] seg_idx_x;
+always @ (*) begin
+    seg_idx_x = SEG_CNT_X - 1 - (next_seg % SEG_CNT_X);
+    segment_line[PIX_WIDTH*PADDING_X +: PIX_WIDTH*SEG_W_NOPAD] = img_line_in[SEG_W_NOPAD*PIX_WIDTH*seg_idx_x +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
+    if (seg_idx_x == 0)
         segment_line[PADDING_X*PIX_WIDTH-1:0] = 0; // Right halo
     else
-        segment_line[PADDING_X*PIX_WIDTH-1:0] = img_line[((seg_idx % SEG_CNT_X) - 1)*SEG_W_NOPAD*PIX_WIDTH +: PIX_WIDTH*PADDING_X]; // Right halo from previous segment
-    if (seg_idx % SEG_CNT_X == SEG_CNT_X - 1)
+        segment_line[PADDING_X*PIX_WIDTH-1:0] = img_line_in[(seg_idx_x - 1)*SEG_W_NOPAD*PIX_WIDTH +: PIX_WIDTH*PADDING_X]; // Right halo from previous segment
+    if (seg_idx_x == SEG_CNT_X - 1)
         segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = 0; // Left halo
     else
-        segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = img_line[SEG_W_NOPAD*PIX_WIDTH*(seg_idx % SEG_CNT_X + 1) +: PIX_WIDTH*PADDING_X]; // Left halo from next segment
+        segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = img_line_in[SEG_W_NOPAD*PIX_WIDTH*(seg_idx_x + 1) +: PIX_WIDTH*PADDING_X]; // Left halo from next segment
 end
-endfunction
-
-reg [$clog2(SEG_CNT_TOT+1):0] next_seg;
 
 reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line;
 always @ (*) begin
@@ -83,7 +85,7 @@ always @ (*) begin
         (pe_seg_in / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no == SEG_HEIGHT-1))
         current_segment_line = {SEG_WIDTH{{PIX_WIDTH{1'b0}}}};
     else
-        current_segment_line = segment_line(img_line_in, next_seg);
+        current_segment_line = segment_line;
 end
 
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_chunk_out;
