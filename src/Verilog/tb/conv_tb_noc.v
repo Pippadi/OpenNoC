@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
-//`define BMP_HEADER_SIZE 11
-`define BMP_HEADER_SIZE 1078
-`define IMG_WIDTH 512
-`define IMG_HEIGHT 512
+`define BMP_HEADER_SIZE 11
+//`define BMP_HEADER_SIZE 1078
+`define IMG_WIDTH 8
+`define IMG_HEIGHT 8
 `define PIX_WIDTH 8
 
 // Most widths are in pixels, unless specified.
@@ -139,17 +139,15 @@ conv_pe_insts #(
 
     initial begin
         // Uncomment for value change dump
-        /*
-        $dumpfile("conv_tb_noc.vcd");
+        $dumpfile("conv_tb_noc.fst");
         $dumpvars(0, conv_tb_noc);
-        */
 
-        //file = $fopen("../../../data/gray_8x8.pgm", "rb");
-        //file1 = $fopen("../../../data/out_gray_8x8.pgm", "wb");
-        file = $fopen("../../../../../../../data/peppers512.bmp", "rb");
-        file1 = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
+        file = $fopen("../../../data/gray_8x8.pgm", "rb");
+        file1 = $fopen("../../../data/out_gray_8x8.pgm", "wb");
+        //file = $fopen("../../../../../../../data/peppers512.bmp", "rb");
+        //file1 = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
         //file = $fopen("../../../data/peppers512.bmp","rb");       // Uncomment when
-        //file1 = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog
+        //file1 = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
         for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
             $fscanf(file, "%c", imgData);
             $fwrite(file1, "%c", imgData);
@@ -188,4 +186,4 @@ conv_pe_insts #(
         end
     end
 
-    endmodule
+endmodule
