@@ -54,8 +54,8 @@ module reassembler
 
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk_in = noc_in_data[NOC_BIT_WIDTH-1 -: CHUNK_WIDTH*PIX_WIDTH];
 wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] chunk_in_idx = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y)) +: $clog2(SEG_WIDTH/CHUNK_WIDTH)];
-wire [$clog2(NOC_X)-1:0] pe_y_idx = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y))-1 -: $clog2(NOC_Y)];
-wire [$clog2(NOC_Y)-1:0] pe_x_idx = noc_in_data[($clog2(NOC_X)+$clog2(NOC_Y)) +: $clog2(NOC_X)];
+wire [$clog2(NOC_Y)-1:0] pe_y_idx = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y))-1 -: $clog2(NOC_Y)];
+wire [$clog2(NOC_X)-1:0] pe_x_idx = noc_in_data[($clog2(NOC_X)+$clog2(NOC_Y)) +: $clog2(NOC_X)];
 
 initial begin
     $monitor("Chunk %d %h from x%d y%d for line %d", chunk_in_idx, chunk_in, pe_x_idx, pe_y_idx, pe_seg_line);

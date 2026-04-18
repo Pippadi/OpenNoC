@@ -4,7 +4,7 @@ module conv_dispatcher
 #(
     parameter PIX_WIDTH = 8,
 
-    parameter NOC_X = 4,
+    parameter NOC_X = 2,
     parameter NOC_Y = 2,
 
     parameter NOC_ADDR_X = 0,

@@ -12,12 +12,13 @@
 // These lines are sent chunk-by-chunk over the NoC. Because NoC width is the ultimate parameter we want
 // to optimize for, we parameterize the chunk width separately from the segment width.
 // Segment width is calculated as (IMG_WIDTH / SEG_CNT_X) + (floor(KERN_X/2) * 4). Ensure CHUNK_WIDTH evenly
-// divides segment width.
-`define CHUNK_WIDTH 13 // In pixels
-`define SEG_CNT_X 2
-`define SEG_CNT_Y 2
-`define NOC_X 2 // NoC X dimension (number of columns of PEs)
-`define NOC_Y 2 // NoC Y dimension (number of rows of PEs)
+// divides segment width. Also ensure that the segment X and Y counts evenly divide the image width
+// and height respectively.
+`define CHUNK_WIDTH 12 // In pixels
+`define SEG_CNT_X 4
+`define SEG_CNT_Y 4
+`define NOC_X 4 // NoC X dimension (number of columns of PEs)
+`define NOC_Y 4 // NoC Y dimension (number of rows of PEs)
 
 `define KERN_X 3
 `define KERN_Y 3
@@ -144,12 +145,12 @@ conv_pe_insts #(
         $dumpvars(0, conv_tb_noc);
         */
 
-        //file = $fopen("../../../data/gray_8x8.pgm", "rb");
-        //out_file = $fopen("../../../data/out_gray_8x8.pgm", "wb");
-        //file = $fopen("../../../../../../../data/peppers512.bmp", "rb");
-        //out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb");
-        file = $fopen("../../../data/peppers512.bmp","rb");       // Uncomment when
-        out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
+        // file = $fopen("../../../data/gray_8x8.pgm", "rb");
+        // out_file = $fopen("../../../data/out_gray_8x8.pgm", "wb");
+        file = $fopen("../../../../../../../data/peppers512.bmp", "rb");        // Uncomment when
+        out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb"); // using Vivado
+        // file = $fopen("../../../data/peppers512.bmp","rb");          // Uncomment when
+        // out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
         for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
             $fscanf(file, "%c", imgData);
             $fwrite(out_file, "%c", imgData);
