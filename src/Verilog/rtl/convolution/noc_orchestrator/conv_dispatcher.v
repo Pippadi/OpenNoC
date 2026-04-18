@@ -32,7 +32,7 @@ module conv_dispatcher
     input rst_n,
     input clk,
 
-    output reg [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
+    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
     input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
 
     // --- PE info interface ---
