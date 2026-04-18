@@ -123,7 +123,7 @@ always @ (posedge clk) begin
 
             OUTPUT: begin
                 // Don't send vertical padding lines
-                out_line_valid <= pe_seg_line >= PADDING_Y && pe_seg_line < (SEG_HEIGHT-PADDING_Y);
+                out_line_valid <= pe_seg_line > PADDING_Y && pe_seg_line <= (SEG_HEIGHT-PADDING_Y);
                 inc_pe_seg_line <= 1;
                 state <= CLEAR;
             end
