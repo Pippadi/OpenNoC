@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-//`define BMP_HEADER_SIZE 11
+// `define BMP_HEADER_SIZE 11
 `define BMP_HEADER_SIZE 1078
 `define IMG_WIDTH 512
 `define IMG_HEIGHT 512
@@ -22,6 +22,7 @@
 
 `define KERN_X 3
 `define KERN_Y 3
+`define KERN {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7} // Box blur
 
 module conv_tb_noc();
 
@@ -34,10 +35,16 @@ reg [`IMG_WIDTH*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT-1];
 
 localparam PADDING_X = (`KERN_X / 2) * 2;
 localparam PADDING_Y = (`KERN_Y / 2) * 2;
+
 localparam SEG_WIDTH = `IMG_WIDTH / `SEG_CNT_X + 2*PADDING_X;
 localparam SEG_HEIGHT = `IMG_HEIGHT / `SEG_CNT_Y + 2*PADDING_Y;
 localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
-localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH;
+
+localparam TYPE_WIDTH = 1;
+localparam TYPE_IMG = 1'b1;
+localparam TYPE_KERN = 1'b0;
+
+localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH + TYPE_WIDTH;
 
 wire done;
 // Input to dispatcher
@@ -65,7 +72,13 @@ conv_pe_insts #(
     .IMG_HEIGHT(`IMG_HEIGHT),
     .CHUNK_WIDTH(`CHUNK_WIDTH),
     .SEG_CNT_X(`SEG_CNT_X),
-    .SEG_CNT_Y(`SEG_CNT_Y)
+    .SEG_CNT_Y(`SEG_CNT_Y),
+    .TYPE_WIDTH(TYPE_WIDTH),
+    .TYPE_IMG(TYPE_IMG),
+    .TYPE_KERN(TYPE_KERN),
+    .KERN_X(`KERN_X),
+    .KERN_Y(`KERN_Y),
+    .KERN(`KERN)
 ) PE_Insts (
     .rst_n(rst_n),
     .clk(clk),
@@ -115,15 +128,13 @@ conv_pe_insts #(
         forever #5 clk = ~clk;
     end
 
-    /*
     // Timeout for infinite loop and short simulation runs when using dumpvars
     initial begin
-        #1000000;
+        #5000000;
         $fclose(file);
         $fclose(out_file);
         $finish;
     end
-    */
 
     genvar x, y;
     generate
@@ -140,17 +151,15 @@ conv_pe_insts #(
 
     initial begin
         // Uncomment for value change dump
-        /*
         $dumpfile("conv_tb_noc.fst");
         $dumpvars(0, conv_tb_noc);
-        */
 
         // file = $fopen("../../../data/gray_8x8.pgm", "rb");
         // out_file = $fopen("../../../data/out_gray_8x8.pgm", "wb");
-        file = $fopen("../../../../../../../data/peppers512.bmp", "rb");        // Uncomment when
-        out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb"); // using Vivado
-        // file = $fopen("../../../data/peppers512.bmp","rb");          // Uncomment when
-        // out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
+        // file = $fopen("../../../../../../../data/peppers512.bmp", "rb");        // Uncomment when
+        // out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb"); // using Vivado
+        file = $fopen("../../../data/peppers512.bmp","rb");          // Uncomment when
+        out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
         for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
             $fscanf(file, "%c", imgData);
             $fwrite(out_file, "%c", imgData);

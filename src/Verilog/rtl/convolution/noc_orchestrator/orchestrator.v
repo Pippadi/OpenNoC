@@ -16,8 +16,13 @@ module orchestrator
     parameter SEG_CNT_X = 2,
     parameter SEG_CNT_Y = 2,
 
+    parameter TYPE_WIDTH = 1,
+    parameter TYPE_IMG = 1'b1,
+    parameter TYPE_KERN = 1'b0,
+
     parameter KERN_X = 3,
     parameter KERN_Y = 3,
+    parameter KERN = {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7},
 
     localparam PADDING_X = (KERN_X / 2) * 2,
     localparam PADDING_Y = (KERN_Y / 2) * 2,
@@ -26,7 +31,7 @@ module orchestrator
     localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2*PADDING_Y,
     localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
 
-    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
+    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH + TYPE_WIDTH
 )
 (
     input rst_n,
@@ -81,8 +86,12 @@ conv_dispatcher #(
     .CHUNK_WIDTH(CHUNK_WIDTH),
     .SEG_CNT_X(SEG_CNT_X),
     .SEG_CNT_Y(SEG_CNT_Y),
+    .TYPE_WIDTH(TYPE_WIDTH),
+    .TYPE_IMG(TYPE_IMG),
+    .TYPE_KERN(TYPE_KERN),
     .KERN_X(KERN_X),
-    .KERN_Y(KERN_Y)
+    .KERN_Y(KERN_Y),
+    .KERN(KERN)
 ) Dispatcher (
     .rst_n(rst_n),
     .clk(clk),
@@ -126,6 +135,7 @@ reassembler #(
     .CHUNK_WIDTH(CHUNK_WIDTH),
     .SEG_CNT_X(SEG_CNT_X),
     .SEG_CNT_Y(SEG_CNT_Y),
+    .TYPE_WIDTH(TYPE_WIDTH),
     .KERN_X(KERN_X),
     .KERN_Y(KERN_Y)
 ) Reassembler (

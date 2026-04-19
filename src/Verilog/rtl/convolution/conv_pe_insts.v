@@ -14,8 +14,13 @@ module conv_pe_insts
     parameter SEG_CNT_X = 2,
     parameter SEG_CNT_Y = 2,
 
+    parameter TYPE_WIDTH = 1,
+    parameter TYPE_IMG = 1'b1,
+    parameter TYPE_KERN = 1'b0,
+
     parameter KERN_X = 3,
     parameter KERN_Y = 3,
+    parameter KERN = {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7}, // Box blur
 
     localparam PADDING_X = (KERN_X / 2) * 2,
     localparam PADDING_Y = (KERN_Y / 2) * 2,
@@ -25,7 +30,7 @@ module conv_pe_insts
     localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
 
     localparam CHUNK_CNT_WIDTH = $clog2(SEG_WIDTH/CHUNK_WIDTH),
-    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
+    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH + TYPE_WIDTH
 )
 (
     input  wire clk,
@@ -66,7 +71,13 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .IMG_HEIGHT(IMG_HEIGHT),
                 .CHUNK_WIDTH(CHUNK_WIDTH),
                 .SEG_CNT_X(SEG_CNT_X),
-                .SEG_CNT_Y(SEG_CNT_Y)
+                .SEG_CNT_Y(SEG_CNT_Y),
+                .TYPE_WIDTH(TYPE_WIDTH),
+                .TYPE_IMG(TYPE_IMG),
+                .TYPE_KERN(TYPE_KERN),
+                .KERN_X(KERN_X),
+                .KERN_Y(KERN_Y),
+                .KERN(KERN)
             ) Orchestrator (
                 .rst_n(rst_n),
                 .clk(clk),
@@ -99,7 +110,12 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .NOC_ADDR_X(x),
                 .NOC_ADDR_Y(y),
                 .NOC_REASSEMBLER_ADDR_X(0),
-                .NOC_REASSEMBLER_ADDR_Y(0)
+                .NOC_REASSEMBLER_ADDR_Y(0),
+                .TYPE_WIDTH(TYPE_WIDTH),
+                .TYPE_IMG(TYPE_IMG),
+                .TYPE_KERN(TYPE_KERN),
+                .KERN_X(KERN_X),
+                .KERN_Y(KERN_Y)
             ) ConvPE (
                 .clk(clk),
                 .rst_n(rst_n),

@@ -9,13 +9,14 @@ module line_chunk_buffer
 #(
     parameter PIX_WIDTH = 8,
     parameter LINE_WIDTH = 16,
-    parameter CHUNK_WIDTH = 4
+    parameter CHUNK_WIDTH = 4,
+    localparam CHUNK_IDX_WIDTH = ($clog2(LINE_WIDTH/CHUNK_WIDTH) == 0) ? 0 : $clog2(LINE_WIDTH/CHUNK_WIDTH)-1
 )
 (
     input rst_n,
     input clk,
     input chunk_avail,
-    input [$clog2(LINE_WIDTH/CHUNK_WIDTH)-1:0] chunk_idx,
+    input [CHUNK_IDX_WIDTH:0] chunk_idx,
     input [CHUNK_WIDTH*PIX_WIDTH-1:0] chunk,
     input line_clear,
     output reg [LINE_WIDTH*PIX_WIDTH-1:0] line,

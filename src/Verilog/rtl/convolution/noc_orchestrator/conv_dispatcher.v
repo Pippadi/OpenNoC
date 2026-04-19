@@ -16,8 +16,13 @@ module conv_dispatcher
     parameter SEG_CNT_X = 2,
     parameter SEG_CNT_Y = 2,
 
+    parameter TYPE_WIDTH = 1,
+    parameter TYPE_IMG = 1'b1,
+    parameter TYPE_KERN = 1'b0,
+
     parameter KERN_X = 3,
     parameter KERN_Y = 3,
+    parameter KERN = {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7},
 
     localparam PADDING_X = (KERN_X / 2) * 2,
     localparam PADDING_Y = (KERN_Y / 2) * 2,
@@ -26,7 +31,7 @@ module conv_dispatcher
     localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2*PADDING_Y,
     localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
 
-    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH
+    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH + TYPE_WIDTH
 )
 (
     input rst_n,
@@ -91,11 +96,11 @@ reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line; // Set when sending, see bel
 
 /*** Segment Dispatching ***/
 
-wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_chunk_out;
-wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] tx_chunk_idx;
+wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_line_chunk_out;
+wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] tx_line_chunk_idx;
 wire tx_line_valid;
 wire tx_line_complete;
-wire tx_chunk_valid, tx_chunk_ready;
+wire tx_line_chunk_valid, tx_line_chunk_ready;
 
 line_chunker #(
     .PIX_WIDTH(PIX_WIDTH),
@@ -106,15 +111,15 @@ line_chunker #(
     .clk(clk),
     .line_valid(tx_line_valid),
     .line_in(current_segment_line),
-    .chunk_out_ready(tx_chunk_ready),
-    .chunk_out(tx_chunk_out),
-    .chunk_out_valid(tx_chunk_valid),
-    .chunk_idx(tx_chunk_idx),
+    .chunk_out_ready(tx_line_chunk_ready),
+    .chunk_out(tx_line_chunk_out),
+    .chunk_out_valid(tx_line_chunk_valid),
+    .chunk_idx(tx_line_chunk_idx),
     .complete(tx_line_complete)
 );
 
 reg [1:0] state;
-localparam IDLE = 2'b00, CALC_SEGMENT = 2'b01, SEND = 2'b10;
+localparam IDLE = 2'b00, SEND_KERNEL = 2'b01, CALC_SEGMENT = 2'b10, SEND_LINE = 2'b11;
 always @ (posedge clk) begin
     if (~rst_n) begin
         done <= 0;
@@ -140,7 +145,8 @@ always @ (posedge clk) begin
                 // We need segment number for segment calculation, but the map in the orchestrator
                 // will be updated one cycle too late, so we're storing it here
                 current_pe_seg <= (pe_seg_line_no == 0) ? next_seg : pe_seg_in;
-                state <= CALC_SEGMENT;
+                state <= (pe_seg_line_no == 0) ? SEND_KERNEL : CALC_SEGMENT;
+                current_segment_line <= {{((SEG_WIDTH-KERN_X*KERN_Y)*PIX_WIDTH){1'b0}}, KERN};
             end else begin
                 pe_set_busy <= 0;
                 pe_set_seg <= 0;
@@ -156,15 +162,21 @@ always @ (posedge clk) begin
             pe_set_seg <= 0;
         end
 
+        SEND_KERNEL: begin
+            pe_set_busy <= 0;
+            pe_set_seg <= 0;
+            state <= tx_line_complete ? CALC_SEGMENT : SEND_KERNEL;
+        end
+
         CALC_SEGMENT: begin
             pe_set_busy <= 0;
             pe_set_seg <= 0;
             current_segment_line <= line_is_top_bottom ? {SEG_WIDTH{{PIX_WIDTH{1'b0}}}} : segment_line;
-            state <= SEND;
+            state <= SEND_LINE;
         end
 
         // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.
-        SEND: begin
+        SEND_LINE: begin
             pe_set_busy <= 0;
             pe_set_seg <= 0;
             if (tx_line_complete) begin
@@ -173,21 +185,21 @@ always @ (posedge clk) begin
                 done <= pe_seg_in == SEG_CNT_TOT-1 && pe_seg_line_no == SEG_HEIGHT-1;
             end
         end
-
-        default: state <= IDLE;
         endcase
     end
 end
 
 assign pe_seg_out = next_seg;
 
-assign tx_line_valid = (state == SEND);
-assign tx_chunk_ready = noc_out_ready;
+assign tx_line_valid = (state == SEND_LINE || state == SEND_KERNEL);
+assign tx_line_chunk_ready = noc_out_ready;
 
 // Pixel data, Chunk index, Source Y, Source X, Dest Y, Dest X
-assign noc_out_data = (state == SEND) ?
-    {tx_chunk_out, tx_chunk_idx, {$clog2(NOC_Y){1'b0}}, {$clog2(NOC_X){1'b0}}, pe_idx_y, pe_idx_x} :
+assign noc_out_data = (state == SEND_KERNEL || state == SEND_LINE) ?
+    {tx_line_chunk_out, tx_line_chunk_idx, (state == SEND_KERNEL) ? TYPE_KERN : TYPE_IMG, {$clog2(NOC_Y){1'b0}}, {$clog2(NOC_X){1'b0}}, pe_idx_y, pe_idx_x} :
     {NOC_BIT_WIDTH{1'b0}};
-assign noc_out_valid = (state == SEND) ? tx_chunk_valid : 0;
+assign noc_out_valid = (state == SEND_LINE || state == SEND_KERNEL) ? tx_line_chunk_valid : 1'b0;
+
+initial $monitor("%h, %d", noc_out_data, state);
 
 endmodule
