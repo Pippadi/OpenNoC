@@ -35,3 +35,5 @@
 tags
 src/Verilog/tb/conv_tb_noc.vcd
 src/Verilog/tb/convtest
+data/out_gray_64x64.pgm
+data/outputPeppers.bmp

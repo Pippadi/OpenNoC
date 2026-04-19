@@ -18,6 +18,7 @@ module conv_pe
 
     parameter KERN_X = 3,
     parameter KERN_Y = 3,
+    parameter KERN_FRAC_BITS = 6,
 
     localparam CHUNK_CNT_WIDTH = $clog2(LINE_WIDTH/CHUNK_WIDTH),
     localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + CHUNK_CNT_WIDTH + CHUNK_WIDTH*PIX_WIDTH + TYPE_WIDTH
@@ -87,7 +88,7 @@ line_chunk_buffer #(
 conv_unit #(
     .PIX_WIDTH(PIX_WIDTH),
     .LINE_WIDTH(LINE_WIDTH),
-    .KERN_FRAC_BITS(6),
+    .KERN_FRAC_BITS(KERN_FRAC_BITS),
     .KERN_WIDTH(3),
     .KERN_HEIGHT(3)
 ) ConvUnit (

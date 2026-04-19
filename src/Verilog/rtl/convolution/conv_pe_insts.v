@@ -20,7 +20,8 @@ module conv_pe_insts
 
     parameter KERN_X = 3,
     parameter KERN_Y = 3,
-    parameter KERN = {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7}, // Box blur
+    parameter KERN = {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7},
+    parameter KERN_FRAC_BITS = 6,
 
     localparam PADDING_X = (KERN_X / 2) * 2,
     localparam PADDING_Y = (KERN_Y / 2) * 2,
@@ -115,7 +116,8 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .TYPE_IMG(TYPE_IMG),
                 .TYPE_KERN(TYPE_KERN),
                 .KERN_X(KERN_X),
-                .KERN_Y(KERN_Y)
+                .KERN_Y(KERN_Y),
+                .KERN_FRAC_BITS(KERN_FRAC_BITS)
             ) ConvPE (
                 .clk(clk),
                 .rst_n(rst_n),

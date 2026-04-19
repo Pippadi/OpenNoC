@@ -200,6 +200,4 @@ assign noc_out_data = (state == SEND_KERNEL || state == SEND_LINE) ?
     {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND_LINE || state == SEND_KERNEL) ? tx_line_chunk_valid : 1'b0;
 
-initial $monitor("%h, %d", noc_out_data, state);
-
 endmodule
