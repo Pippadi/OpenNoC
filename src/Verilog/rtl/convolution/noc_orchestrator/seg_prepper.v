@@ -120,7 +120,7 @@ always @ (posedge clk) begin
         end
         DONE: begin
             segment_line_valid <= 1;
-            state <= segment_line_ready ? IDLE : DONE;
+            state <= segment_line_ready ? DONE : IDLE;
         end
         default: state <= IDLE;
         endcase

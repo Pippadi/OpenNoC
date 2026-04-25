@@ -172,8 +172,11 @@ always @ (posedge clk) begin
         end
 
         CALC_SEGMENT: begin
+            pe_set_busy <= 0;
+            pe_set_seg <= 0;
             segment_line_ready <= 1;
             if (segment_line_valid) begin
+                segment_line_ready <= 0;
                 current_segment_line <= segment_line;
                 state <= SEND_LINE;
             end
@@ -181,7 +184,6 @@ always @ (posedge clk) begin
 
         // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.
         SEND_LINE: begin
-            segment_line_ready <= 0;
             if (tx_line_complete) begin
                 state <= IDLE;
                 next_seg <= (pe_seg_line_no == 0) ? next_seg + 1 : next_seg;
