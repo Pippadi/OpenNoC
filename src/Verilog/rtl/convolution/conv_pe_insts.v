@@ -48,8 +48,8 @@ module conv_pe_insts
 
     // Orchestrator interfaces
     output wire img_line_in_ready,
-    output wire [$clog2((IMG_WIDTH/SEG_CNT_X) * IMG_HEIGHT)-1:0] img_line_in_idx,
-    input wire [(IMG_WIDTH/SEG_CNT_X)-1:0] img_line_in,
+    output wire [$clog2(SEG_CNT_X * IMG_HEIGHT)-1:0] img_line_in_idx,
+    input wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_in,
     input wire img_line_in_valid,
 
     output wire [$clog2(IMG_HEIGHT*SEG_CNT_X)-1:0] img_line_out_idx,

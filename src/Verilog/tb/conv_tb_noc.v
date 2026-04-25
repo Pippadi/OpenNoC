@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
-`define BMP_HEADER_SIZE 13
-// `define BMP_HEADER_SIZE 1078
-`define IMG_WIDTH 64
-`define IMG_HEIGHT 64
+// `define BMP_HEADER_SIZE 13
+`define BMP_HEADER_SIZE 1078
+`define IMG_WIDTH 512
+`define IMG_HEIGHT 512
 `define PIX_WIDTH 8
 
 // Most widths are in pixels, unless specified.
@@ -14,17 +14,17 @@
 // Segment width is calculated as (IMG_WIDTH / SEG_CNT_X) + (floor(KERN_X/2) * 4). Ensure CHUNK_WIDTH evenly
 // divides segment width. Also ensure that the segment X and Y counts evenly divide the image width
 // and height respectively.
-`define CHUNK_WIDTH 3 // In pixels
+`define CHUNK_WIDTH 14 // In pixels
 `define SEG_CNT_X 4
 `define SEG_CNT_Y 4
 `define NOC_X 4 // NoC X dimension (number of columns of PEs)
 `define NOC_Y 4 // NoC Y dimension (number of rows of PEs)
 
 // The entire kernel must fit in one segment line (KERN_X*KERN_Y <= SEG_WIDTH).
-`define KERN_X 3 // In pixels
-`define KERN_Y 3
+`define KERN_X 7 // In pixels
+`define KERN_Y 7
 // Row-major
-`define KERN {9{8'd7}} // Box blur
+`define KERN {49{8'd7}} // Box blur
 `define KERN_FRAC_BITS 6
 
 module conv_tb_noc();
@@ -51,10 +51,10 @@ localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/
 
 wire done;
 // Input to dispatcher. Direction from the perspective of the dispatcher.
-wire [$clog2(`IMG_HEIGHT)-1:0] img_line_in_idx;
+wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_in_idx;
 wire img_line_in_ready;
 reg img_line_in_valid;
-reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH:0] img_line_in;
+reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_in;
 wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks received by the dispatcher
 
 // Output from reassembler. Direction from the perspective of the reassembler.
@@ -156,28 +156,28 @@ generate
     end
 endgenerate
 
-reg [7:0] line_temp [0:`IMG_WIDTH-1];
+reg [7:0] line_temp [0:(`IMG_WIDTH/`SEG_CNT_X)-1];
 
 initial begin
     // Uncomment for value change dump
     $dumpfile("conv_tb_noc.fst");
     $dumpvars(0, conv_tb_noc);
 
-    file = $fopen("../../../data/gray_64x64.pgm", "rb");
-    out_file = $fopen("../../../data/out_gray_64x64.pgm", "wb");
+    // file = $fopen("../../../data/gray_64x64.pgm", "rb");
+    // out_file = $fopen("../../../data/out_gray_64x64.pgm", "wb");
     // file = $fopen("../../../../../../../data/peppers512.bmp", "rb");        // Uncomment when
     // out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb"); // using Vivado
-    // file = $fopen("../../../data/peppers512.bmp","rb");          // Uncomment when
-    // out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
+    file = $fopen("../../../data/peppers512.bmp","rb");          // Uncomment when
+    out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
     for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
         $fscanf(file, "%c", imgData);
         $fwrite(out_file, "%c", imgData);
     end
 
     // Have to do this, because $fread's count argument is too small to read all of it at once
-    for (i = 0; i < `IMG_HEIGHT; i = i + 1) begin
+    for (i = 0; i < `IMG_HEIGHT*`SEG_CNT_X; i = i + 1) begin
         $fread(line_temp, file, 0, `IMG_WIDTH/`SEG_CNT_X);
-        for (j = 0; j < `IMG_WIDTH; j = j + 1) begin
+        for (j = 0; j < `IMG_WIDTH/`SEG_CNT_X; j = j + 1) begin
             img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
         end
     end
@@ -212,7 +212,5 @@ initial begin
         end
     end
 end
-
-initial $monitor("%d %d", img_line_in_idx, line_recvd_cnt);
 
 endmodule
