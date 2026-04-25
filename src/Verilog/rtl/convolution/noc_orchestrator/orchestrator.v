@@ -37,9 +37,10 @@ module orchestrator
     input rst_n,
     input clk,
 
-    // Combinationally read
-    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
-    input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
+    output wire img_line_in_ready,
+    output wire [$clog2(SEG_CNT_X*IMG_HEIGHT)-1:0] img_line_in_idx,
+    input wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_in,
+    input wire img_line_in_valid,
 
     // Lines are IMG_WIDTH/SEG_CNT_X pixels wide
     // Line index in the final image is img_line_out_idx / SEG_CNT_X
@@ -96,8 +97,10 @@ conv_dispatcher #(
     .rst_n(rst_n),
     .clk(clk),
 
-    .img_line_idx(img_line_in_idx),
+    .img_line_in_ready(img_line_in_ready),
+    .img_line_in_idx(img_line_in_idx),
     .img_line_in(img_line_in),
+    .img_line_in_valid(img_line_in_valid),
 
     // --- PE info interface ---
     .pe_idx_x(disp_pe_x),

@@ -47,8 +47,10 @@ module conv_pe_insts
     output wire [(NOC_X*NOC_Y)-1:0]              noc_in_readies,
 
     // Orchestrator interfaces
-    input wire [PIX_WIDTH*IMG_WIDTH-1:0] img_line_in,
-    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_in_idx,
+    output wire img_line_in_ready,
+    output wire [$clog2((IMG_WIDTH/SEG_CNT_X) * IMG_HEIGHT)-1:0] img_line_in_idx,
+    input wire [(IMG_WIDTH/SEG_CNT_X)-1:0] img_line_in,
+    input wire img_line_in_valid,
 
     output wire [$clog2(IMG_HEIGHT*SEG_CNT_X)-1:0] img_line_out_idx,
     output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
@@ -83,8 +85,10 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .rst_n(rst_n),
                 .clk(clk),
 
+                .img_line_in_ready(img_line_in_ready),
                 .img_line_in_idx(img_line_in_idx),
                 .img_line_in(img_line_in),
+                .img_line_in_valid(img_line_in_valid),
 
                 .img_line_out_idx(img_line_out_idx),
                 .img_line_out(img_line_out),

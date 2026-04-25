@@ -37,8 +37,10 @@ module conv_dispatcher
     input rst_n,
     input clk,
 
-    output wire [$clog2(IMG_HEIGHT)-1:0] img_line_idx,
-    input [IMG_WIDTH*PIX_WIDTH-1:0] img_line_in,
+    output wire img_line_in_ready,
+    output wire [$clog2(SEG_CNT_X*IMG_HEIGHT)-1:0] img_line_in_idx,
+    input wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_in,
+    input wire img_line_in_valid,
 
     // --- PE info interface ---
     output reg [$clog2(NOC_X)-1:0] pe_idx_x,
@@ -65,34 +67,33 @@ reg [$clog2(SEG_CNT_TOT+1):0] next_seg;
 
 /*** Image Segmenting ***/
 
-// Offset within segment + (Y component of segment * segment height)
-assign img_line_idx = pe_seg_line_no + ((pe_seg_in / SEG_CNT_X) * (IMG_HEIGHT/SEG_CNT_Y));
-
 // Extracts the appropriate line segment, and adds halo pixels for zero padding.
-localparam SEG_W_NOPAD = IMG_WIDTH / SEG_CNT_X;
 reg [$clog2(SEG_CNT_TOT)-1:0] current_pe_seg; // Set before sending, see below
-reg [SEG_WIDTH*PIX_WIDTH-1:0] segment_line;
-reg [$clog2(SEG_CNT_X)-1:0] seg_idx_x;
-always @ (*) begin
-    seg_idx_x = current_pe_seg % SEG_CNT_X;
-    segment_line[PIX_WIDTH*PADDING_X +: PIX_WIDTH*SEG_W_NOPAD] = img_line_in[SEG_W_NOPAD*PIX_WIDTH*seg_idx_x +: SEG_W_NOPAD*PIX_WIDTH]; // Main segment pixels
-    if (seg_idx_x == 0)
-        segment_line[PADDING_X*PIX_WIDTH-1:0] = 0; // Right halo
-    else
-        segment_line[PADDING_X*PIX_WIDTH-1:0] = img_line_in[(seg_idx_x - 1)*SEG_W_NOPAD*PIX_WIDTH +: PIX_WIDTH*PADDING_X]; // Right halo from previous segment
-    if (seg_idx_x == SEG_CNT_X - 1)
-        segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = 0; // Left halo
-    else
-        segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = img_line_in[SEG_W_NOPAD*PIX_WIDTH*(seg_idx_x + 1) +: PIX_WIDTH*PADDING_X]; // Left halo from next segment
-end
+wire [SEG_WIDTH*PIX_WIDTH-1:0] segment_line;
+reg segment_line_ready;
+wire segment_line_valid;
 
-// If the line number within the segment is 0, and the segment is at the top of
-// the image, or the segment line number is the bottommost, and the segment is
-// along the bottom of the image, the line must be zero (zero padding).
-wire line_is_top_bottom =
-    (pe_seg_in / SEG_CNT_X == 0 && pe_seg_line_no == 0) ||
-    (pe_seg_in / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no == SEG_HEIGHT-1);
-reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line; // Set when sending, see below
+seg_prepper #(
+    .PIX_WIDTH(PIX_WIDTH),
+    .IMG_WIDTH(IMG_WIDTH),
+    .IMG_HEIGHT(IMG_HEIGHT),
+    .SEG_CNT_X(SEG_CNT_X),
+    .SEG_CNT_Y(SEG_CNT_Y),
+    .KERN_X(KERN_X),
+    .KERN_Y(KERN_Y)
+) SegPrepper (
+    .rst_n(rst_n),
+    .clk(clk),
+    .pe_seg(current_pe_seg),
+    .pe_seg_line_no(pe_seg_line_no),
+    .img_line_in_ready(img_line_in_ready),
+    .img_line_in_idx(img_line_in_idx),
+    .img_line_in(img_line_in),
+    .img_line_in_valid(img_line_in_valid),
+    .segment_line_ready(segment_line_ready),
+    .segment_line_valid(segment_line_valid),
+    .segment_line(segment_line)
+);
 
 /*** Segment Dispatching ***/
 
@@ -118,6 +119,8 @@ line_chunker #(
     .complete(tx_line_complete)
 );
 
+reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line; // Set when sending, see below
+
 reg [1:0] state;
 localparam IDLE = 2'b00, SEND_KERNEL = 2'b01, CALC_SEGMENT = 2'b10, SEND_LINE = 2'b11;
 always @ (posedge clk) begin
@@ -131,11 +134,11 @@ always @ (posedge clk) begin
         pe_set_seg <= 0;
         current_pe_seg <= 0;
         current_segment_line <= {SEG_WIDTH{{PIX_WIDTH{1'b0}}}};
+        segment_line_ready <= 0;
     end else begin
         case (state)
         IDLE: if (~done) begin
             // Cycle through PEs to find an idle one, assign next segment, and move to SEND state. If no idle PE, stay in IDLE and check again next cycle.
-            //$display("PE %d, %d: %b %d %d", pe_idx_x, pe_idx_y, pe_busy, pe_seg_in, pe_seg_line_no);
 
             // Make sure we leave idle PEs alone when we're waiting for the last segment to get done
             if (!pe_busy && !(next_seg == SEG_CNT_TOT && pe_seg_line_no == 0)) begin
@@ -169,16 +172,16 @@ always @ (posedge clk) begin
         end
 
         CALC_SEGMENT: begin
-            pe_set_busy <= 0;
-            pe_set_seg <= 0;
-            current_segment_line <= line_is_top_bottom ? {SEG_WIDTH{{PIX_WIDTH{1'b0}}}} : segment_line;
-            state <= SEND_LINE;
+            segment_line_ready <= 1;
+            if (segment_line_valid) begin
+                current_segment_line <= segment_line;
+                state <= SEND_LINE;
+            end
         end
 
         // line_chunker is active and sending chunks for the assigned segment. Once complete, return to IDLE state.
         SEND_LINE: begin
-            pe_set_busy <= 0;
-            pe_set_seg <= 0;
+            segment_line_ready <= 0;
             if (tx_line_complete) begin
                 state <= IDLE;
                 next_seg <= (pe_seg_line_no == 0) ? next_seg + 1 : next_seg;
@@ -199,5 +202,7 @@ assign noc_out_data = (state == SEND_KERNEL || state == SEND_LINE) ?
     {tx_line_chunk_out, tx_line_chunk_idx, (state == SEND_KERNEL) ? TYPE_KERN : TYPE_IMG, {$clog2(NOC_Y){1'b0}}, {$clog2(NOC_X){1'b0}}, pe_idx_y, pe_idx_x} :
     {NOC_BIT_WIDTH{1'b0}};
 assign noc_out_valid = (state == SEND_LINE || state == SEND_KERNEL) ? tx_line_chunk_valid : 1'b0;
+
+// initial $monitor("%d %d", state, segment_line_valid);
 
 endmodule

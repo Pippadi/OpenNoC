@@ -7,6 +7,8 @@ verilator -cc \
     ../rtl/convolution/**/*.v \
     ../rtl/openNoc/src/*.v \
     --binary --trace-fst \
+    --top-module conv_tb_noc \
+    --threads 4 \
     -Wno-CASEX -Wno-CASEOVERLAP -Wno-CASEINCOMPLETE -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC \
     -j $(nproc) \
     && \
