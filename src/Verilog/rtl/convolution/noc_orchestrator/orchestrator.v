@@ -58,8 +58,6 @@ module orchestrator
     output wire [NOC_BIT_WIDTH-1:0] noc_out_data,
     output wire noc_out_valid,
 
-    // For testing
-    output integer recvd_chunk_cnt,
     output wire done
 );
 
@@ -120,7 +118,7 @@ conv_dispatcher #(
     .noc_out_valid(noc_out_valid),
 
     // For testing
-    .done(done)
+    .done()
 );
 
 wire [$clog2(NOC_X)-1:0] reas_pe_x;
@@ -189,19 +187,18 @@ always @ (posedge clk) begin
     end
 end
 
-/* Remove when we have a reassembler (drops processed chunks for now) */
-// TODO: Increment line number for PE
 assign noc_in_ready = 1;
+
+reg [$clog2(IMG_HEIGHT*SEG_CNT_X+1)-1:0] lines_recvd;
 always @ (posedge clk) begin
     if (~rst_n) begin
-        recvd_chunk_cnt <= 0;
+        lines_recvd <= 0;
     end else begin
-        if (noc_in_valid) begin
-            //$display("Got chunk %d", recvd_chunk_cnt+1);
-            recvd_chunk_cnt <= recvd_chunk_cnt + 1;
+        if (reas_inc_pe_seg_line) begin
+            lines_recvd <= lines_recvd + 1;
         end
     end
 end
-/********************************************/
+assign done = lines_recvd == IMG_HEIGHT*SEG_CNT_X;
 
 endmodule

@@ -55,7 +55,6 @@ wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_in_idx;
 wire img_line_in_ready;
 reg img_line_in_valid;
 reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_in;
-wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks received by the dispatcher
 
 // Output from reassembler. Direction from the perspective of the reassembler.
 wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx;
@@ -108,7 +107,6 @@ conv_pe_insts #(
     .img_line_out_valid(img_line_out_valid),
 
     // For testing
-    .recvd_chunk_cnt(recvd_chunk_cnt),
     .done(done)
 );
 

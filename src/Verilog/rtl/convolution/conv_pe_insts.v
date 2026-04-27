@@ -57,7 +57,6 @@ module conv_pe_insts
     output wire img_line_out_valid,
 
     // For testing
-    output wire [31:0] recvd_chunk_cnt,
     output wire done
 );
 
@@ -102,7 +101,6 @@ for (x = 0; x < NOC_X; x = x + 1) begin: xs
                 .noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
                 .noc_out_ready(noc_out_readies[x+NOC_X*y]),
 
-                .recvd_chunk_cnt(recvd_chunk_cnt),
                 .done(done)
             );
         end else begin: conv_pe
