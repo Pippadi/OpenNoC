@@ -27,6 +27,8 @@
 `define KERN {49{8'd7}} // Box blur
 `define KERN_FRAC_BITS 6
 
+`define DMA_DATA_WIDTH 32
+
 module noc_top
 (
     input wire rst_n,
@@ -76,7 +78,6 @@ wire [`NOC_X*`NOC_Y-1:0] noc_in_valids;
 wire [NOC_BIT_WIDTH*`NOC_X*`NOC_Y-1:0] noc_in_datas;
 wire [`NOC_X*`NOC_Y-1:0] noc_in_readies;
 
-(* DONT_TOUCH = "yes" *)
 conv_pe_insts #(
     .PIX_WIDTH(`PIX_WIDTH),
     .NOC_X(`NOC_X),
@@ -137,6 +138,27 @@ openNocTop #(
     .w_ready_pe(noc_in_readies),
     .w_data_pe(noc_in_datas),
     .w_valid_pe(noc_in_valids)
+);
+
+img_dma_iface #(
+    .PIX_WIDTH(`PIX_WIDTH),
+    .IMG_WIDTH(`IMG_WIDTH),
+    .SEG_CNT_X(`SEG_CNT_X),
+    .DMA_DATA_WIDTH(`DMA_DATA_WIDTH)
+) DMAInterface (
+    .rst_n(rst_n),
+    .clk(clk),
+
+    // AXI-Stream Slave Interface
+    .s_axis_tdata(s_axis_tdata),
+    .s_axis_tvalid(s_axis_tvalid),
+    .s_axis_tready(s_axis_tready),
+    .s_axis_tlast(s_axis_tlast),
+
+    // To the dispatcher
+    .img_line_in_ready(img_line_in_ready),
+    .img_line_in_valid(img_line_in_valid),
+    .img_line_in(img_line_in)
 );
 
 endmodule
