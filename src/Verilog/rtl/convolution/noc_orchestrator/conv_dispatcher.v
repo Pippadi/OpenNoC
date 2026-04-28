@@ -97,6 +97,8 @@ seg_prepper #(
 
 /*** Segment Dispatching ***/
 
+reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line; // Set when sending, see below
+
 wire [CHUNK_WIDTH*PIX_WIDTH-1:0] tx_line_chunk_out;
 wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] tx_line_chunk_idx;
 wire tx_line_valid;
@@ -118,8 +120,6 @@ line_chunker #(
     .chunk_idx(tx_line_chunk_idx),
     .complete(tx_line_complete)
 );
-
-reg [SEG_WIDTH*PIX_WIDTH-1:0] current_segment_line; // Set when sending, see below
 
 reg [1:0] state;
 localparam IDLE = 2'b00, SEND_KERNEL = 2'b01, CALC_SEGMENT = 2'b10, SEND_LINE = 2'b11;

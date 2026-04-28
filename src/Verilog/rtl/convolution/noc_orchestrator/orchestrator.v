@@ -187,8 +187,6 @@ always @ (posedge clk) begin
     end
 end
 
-assign noc_in_ready = 1;
-
 reg [$clog2(IMG_HEIGHT*SEG_CNT_X+1)-1:0] lines_recvd;
 always @ (posedge clk) begin
     if (~rst_n) begin
