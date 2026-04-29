@@ -45,9 +45,9 @@ module orchestrator
     // Lines are IMG_WIDTH/SEG_CNT_X pixels wide
     // Line index in the final image is img_line_out_idx / SEG_CNT_X
     // Index within a line is img_line_out_idx % SEG_CNT_X
+    input wire img_line_out_ready,
     output wire [$clog2(IMG_HEIGHT*SEG_CNT_X)-1:0] img_line_out_idx,
     output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
-    // Valid signal asserted for a single cycle
     output wire img_line_out_valid,
 
     input wire noc_in_valid,
@@ -152,6 +152,7 @@ reassembler #(
 
     .pe_seg_line(pe_seg_line_map[reas_pe_x][reas_pe_y]),
 
+    .out_line_ready(img_line_out_ready),
     .out_line(img_line_out),
     .out_line_valid(reas_line_out_valid),
     .inc_pe_seg_line(reas_inc_pe_seg_line)

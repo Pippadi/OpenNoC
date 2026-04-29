@@ -35,14 +35,24 @@ module noc_top
     input wire clk,
 
     // AXI-Stream Slave Interface (From DMA Data Port)
-    input  wire [31:0] s_axis_tdata,
-    input  wire                 s_axis_tvalid,
-    output wire                 s_axis_tready,
-    input  wire                 s_axis_tlast,
+    input  wire [`DMA_DATA_WIDTH-1:0] mm2s_axis_tdata,
+    input  wire mm2s_axis_tvalid,
+    output wire mm2s_axis_tready,
+    input  wire mm2s_axis_tlast,
+
+    // AXI-Stream Slave Interface (To DMA Data Port)
+    output wire [`DMA_DATA_WIDTH-1:0] s2mm_axis_tdata,
+    output wire s2mm_axis_tvalid,
+    input  wire s2mm_axis_tready,
+    output wire s2mm_axis_tlast,
 
     // To the PS for it to initiate DMA read
     output wire img_line_in_ready,
     output wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_in_idx,
+
+    // To the PS for it to initiate DMA write
+    output wire img_line_out_valid,
+    output wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx,
 
     output wire done
 );
@@ -68,7 +78,7 @@ wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks receive
 // Output from reassembler
 wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx;
 wire [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_out;
-wire img_line_out_valid;
+wire img_line_out_valid, img_line_out_ready;
 
 // Directions are from the perspective of the PE
 wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
@@ -115,6 +125,7 @@ conv_pe_insts #(
     .img_line_out(img_line_out),
     .img_line_out_idx(img_line_out_idx),
     .img_line_out_valid(img_line_out_valid),
+    .img_line_out_ready(img_line_out_ready),
 
     // For testing
     .done(done)
@@ -149,16 +160,27 @@ img_dma_iface #(
     .rst_n(rst_n),
     .clk(clk),
 
-    // AXI-Stream Slave Interface
-    .s_axis_tdata(s_axis_tdata),
-    .s_axis_tvalid(s_axis_tvalid),
-    .s_axis_tready(s_axis_tready),
-    .s_axis_tlast(s_axis_tlast),
+    // AXI-Stream Slave Interface from memory
+    .mm2s_axis_tdata(mm2s_axis_tdata),
+    .mm2s_axis_tvalid(mm2s_axis_tvalid),
+    .mm2s_axis_tready(mm2s_axis_tready),
+    .mm2s_axis_tlast(mm2s_axis_tlast),
+
+    // AXI-Stream Slave Interface to memory
+    .s2mm_axis_tdata(s2mm_axis_tdata),
+    .s2mm_axis_tvalid(s2mm_axis_tvalid),
+    .s2mm_axis_tready(s2mm_axis_tready),
+    .s2mm_axis_tlast(s2mm_axis_tlast),
 
     // To the dispatcher
     .img_line_in_ready(img_line_in_ready),
     .img_line_in_valid(img_line_in_valid),
-    .img_line_in(img_line_in)
+    .img_line_in(img_line_in),
+
+    // From the reassembler
+    .img_line_out_ready(img_line_out_ready),
+    .img_line_out(img_line_out),
+    .img_line_out_valid(img_line_out_valid)
 );
 
 endmodule

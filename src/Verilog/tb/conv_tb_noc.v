@@ -60,6 +60,7 @@ reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_in;
 wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx;
 wire [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_out;
 wire img_line_out_valid;
+wire img_line_out_ready = 1;
 
 // Directions are from the perspective of the PE
 wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
@@ -105,6 +106,7 @@ conv_pe_insts #(
     .img_line_out(img_line_out),
     .img_line_out_idx(img_line_out_idx),
     .img_line_out_valid(img_line_out_valid),
+    .img_line_out_ready(img_line_out_ready),
 
     // For testing
     .done(done)

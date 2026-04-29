@@ -48,8 +48,8 @@ module reassembler
     input wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line,
 
     // Segment line to be output
+    input wire out_line_ready,
     output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] out_line,
-    // Assert for one cycle, no acknowledgement needed
     output reg out_line_valid,
     output reg inc_pe_seg_line
 );
@@ -124,8 +124,10 @@ always @ (posedge clk) begin
             OUTPUT: begin
                 // Don't send vertical padding lines
                 out_line_valid <= pe_seg_line > PADDING_Y && pe_seg_line <= (SEG_HEIGHT-PADDING_Y);
-                inc_pe_seg_line <= 1;
-                state <= CLEAR;
+                if (out_line_ready) begin
+                    inc_pe_seg_line <= 1;
+                    state <= CLEAR;
+                end
             end
 
             CLEAR: begin
