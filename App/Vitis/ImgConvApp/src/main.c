@@ -3,10 +3,11 @@
 #include "xgpio.h"
 #include "xparameters.h"
 #include "image.h"
+#include "sleep.h"
 
 #define DONE_BIT_LOC 22
 #define IDX_WIDTH 11
-#define IDX_MASK 0x3FF // 11 bits high
+#define IDX_MASK 0x7FF // 11 bits high
 
 #define PIX_WIDTH 1 // In bytes
 #define SEG_CNT_X 4
@@ -47,7 +48,8 @@ int main() {
         // If status is 19 (XST_DEVICE_NOT_FOUND), the BSP doesn't recognize this address
         return -1;
     }
-    XGpio_SetDataDirection(&idx_gpio, 1, 0xF); // Set to input. Is this necessary?
+    XGpio_SetDataDirection(&idx_gpio, 1, 0xFFFFFFFF); // Set to input. Is this necessary?
+    XGpio_SetDataDirection(&idx_gpio, 2, 0x00000000); // Set to output. Is this necessary?
 
     myDmaConfig = XAxiDma_LookupConfig(XPAR_AXI_DMA_0_BASEADDR);
     if (XAxiDma_CfgInitialize(&myDma, myDmaConfig) != XST_SUCCESS) {
@@ -78,6 +80,7 @@ int main() {
 
     // 0x08 -> Lower priority than 0x0
     // 0x3 -> Trigger on rising edge
+    // 0x1 -> Trigger on high level
     XScuGic_SetPriorityTriggerType(&gic, READ_IRQ, 0x08, 0x1);
     XScuGic_SetPriorityTriggerType(&gic, WRITE_IRQ, 0x00, 0x1);
 
@@ -88,8 +91,10 @@ int main() {
                     (Xil_InterruptHandler) dma_write_isr, NULL);
 
     /* Enable interrupts in GIC */
+    /*
     XScuGic_Enable(&gic, READ_IRQ);
     XScuGic_Enable(&gic, WRITE_IRQ);
+    */
     // ---
 
     __attribute__((aligned(32))) static u8 dma_ip_buffer[IMAGE_LEN];
@@ -100,7 +105,11 @@ int main() {
     Xil_DCacheFlushRange((u64) dma_ip_buffer, IMAGE_LEN);
     Xil_DCacheFlushRange((u64) dma_op_buffer, IMAGE_LEN);
 
-    print("Header copying and flushing done\r\n");
+    xil_printf("Header copying and flushing done, resetting PL...\r\n");
+    XGpio_DiscreteClear(&idx_gpio, 2, 0xFFFFFFFF); // Apply rst_n
+    usleep(10000); // Sleep 10ms
+    XGpio_DiscreteSet(&idx_gpio, 2, 0xFFFFFFFF);   // Release rst_n
+    xil_printf("Reset PL\r\n");
 
     u32 idx_gpio_in;
     u32 read_idx, write_idx;
@@ -108,13 +117,19 @@ int main() {
     while (!done) {
         idx_gpio_in = XGpio_DiscreteRead(&idx_gpio, 1);
         done = (idx_gpio_in >> DONE_BIT_LOC) & 0x1;
+        read_flag = (idx_gpio_in >> (DONE_BIT_LOC + 1)) & 0x1;
+        write_flag = (idx_gpio_in >> (DONE_BIT_LOC + 2)) & 0x1;
+        xil_printf("0x%X\r\n", idx_gpio_in);
+        usleep(200000);
 
         if (read_flag) {
             read_idx = idx_gpio_in & IDX_MASK;
-            xil_printf("Seg line %d requested\r\n", read_idx);
+            xil_printf("Seg line 0x%X requested\r\n", read_idx);
             status = XAxiDma_SimpleTransfer(&myDma, (UINTPTR) (dma_ip_buffer + (read_idx*SEG_W_NOPAD)), SEG_W_NOPAD, XAXIDMA_DMA_TO_DEVICE);
-            if (status != XST_SUCCESS)
+            if (status != XST_SUCCESS) {
+                xil_printf("DMA read failed with code %d\r\n", status);
                 return -1;
+            }
 
             while (XAxiDma_Busy(&myDma, XAXIDMA_DMA_TO_DEVICE));
             xil_printf("Line sent\r\n");
@@ -123,10 +138,13 @@ int main() {
 
         if (write_flag) {
             write_idx = (idx_gpio_in >> IDX_WIDTH) & IDX_MASK;
-            xil_printf("Line ready\r\n");
+            xil_printf("0x%X\r\n", idx_gpio_in);
+            xil_printf("Seg line 0x%X written\r\n", write_idx);
             status = XAxiDma_SimpleTransfer(&myDma, (UINTPTR) (dma_op_buffer + (write_idx*SEG_W_NOPAD)), SEG_W_NOPAD, XAXIDMA_DEVICE_TO_DMA);
-            if (status != XST_SUCCESS)
+            if (status != XST_SUCCESS) {
+                xil_printf("DMA write failed with code %d\r\n", status);
                 return -1;
+            }
 
             while (XAxiDma_Busy(&myDma, XAXIDMA_DEVICE_TO_DMA));
             xil_printf("Line received\r\n");
