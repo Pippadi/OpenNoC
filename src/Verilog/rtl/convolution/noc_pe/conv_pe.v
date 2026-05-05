@@ -104,7 +104,7 @@ conv_unit #(
 
 // State machine to load the conv unit when it requests a line and the chunk buffer is valid,
 // then clear the chunk buffer afterwards
-localparam S_IDLE  = 2'd0, S_LATCH = 2'd1;
+localparam S_IDLE  = 1'd0, S_LATCH = 1'd1;
 
 reg state;
 

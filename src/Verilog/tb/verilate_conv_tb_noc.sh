@@ -9,8 +9,8 @@ verilator -cc \
     --binary --trace-fst \
     --top-module conv_tb_noc \
     --threads 4 \
-    -Wno-CASEX -Wno-CASEOVERLAP -Wno-CASEINCOMPLETE -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC \
+    -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC \
     -j $(nproc) \
     && \
 
-./obj_dir/Vconv_tb_noc
+    ./obj_dir/Vconv_tb_noc
