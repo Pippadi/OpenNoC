@@ -95,6 +95,8 @@ priority_encoder #(.N(NOC_X*NOC_Y)) LineValidEncoder (
     .out(out_line_pe_idx)
 );
 
+wire line_isnt_padding = pe_seg_line >= PADDING_Y  && pe_seg_line < (SEG_HEIGHT - PADDING_Y);
+
 integer i, j;
 reg [1:0] state;
 localparam IDLE = 2'b00, OUTPUT = 2'b01, CLEAR = 2'b10, WAIT_CLEAR = 2'b11;
@@ -123,11 +125,12 @@ always @ (posedge clk) begin
 
             OUTPUT: begin
                 // Don't send vertical padding lines
-                out_line_valid <= pe_seg_line > PADDING_Y && pe_seg_line <= (SEG_HEIGHT-PADDING_Y);
-                if (out_line_ready) begin
+                if ((out_line_ready & out_line_valid) | ~line_isnt_padding) begin
                     inc_pe_seg_line <= 1;
+                    out_line_valid <= 0;
                     state <= CLEAR;
-                end
+                end else
+                    out_line_valid <= line_isnt_padding;
             end
 
             CLEAR: begin

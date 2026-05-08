@@ -58,8 +58,8 @@ end
 
 reg [$clog2((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH)-1:0] shift_cnt;
 assign s2mm_axis_tdata = img_line_out[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH];
-assign s2mm_axis_tvalid = (shift_cnt < (IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH) && img_line_out_valid;
-assign s2mm_axis_tlast = (shift_cnt == (IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH - 1) && img_line_out_valid;
+assign s2mm_axis_tvalid = (shift_cnt < ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH) && img_line_out_valid;
+assign s2mm_axis_tlast = (shift_cnt == ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH - 1) && img_line_out_valid;
 assign img_line_out_ready = s2mm_axis_tlast;
 
 always @ (posedge clk) begin

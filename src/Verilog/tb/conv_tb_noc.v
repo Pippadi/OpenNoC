@@ -139,7 +139,7 @@ end
 
 // Timeout for infinite loop and short simulation runs when using dumpvars
 initial begin
-    #10000000;
+    #10_000_000;
     $fclose(file);
     $fclose(out_file);
     $finish;
@@ -196,8 +196,7 @@ initial begin
         end else
             img_line_in_valid = 0;
 
-        if (img_line_out_valid) begin
-            line_recvd_cnt = line_recvd_cnt + 1;
+        if (img_line_out_valid & img_line_out_ready) begin
             // $display("%d %x", img_line_out_idx, img_line_out);
             // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
             $fseek(out_file, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
@@ -205,7 +204,7 @@ initial begin
                 $fwrite(out_file, "%c", img_line_out[8*i +: 8]);
         end
 
-        if (line_recvd_cnt == `IMG_HEIGHT*`SEG_CNT_X) begin
+        if (done) begin
             $fclose(file);
             $fclose(out_file);
             $finish;

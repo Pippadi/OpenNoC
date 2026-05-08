@@ -193,7 +193,7 @@ always @ (posedge clk) begin
     if (~rst_n) begin
         lines_recvd <= 0;
     end else begin
-        if (reas_inc_pe_seg_line) begin
+        if (img_line_out_valid & img_line_out_ready) begin
             lines_recvd <= lines_recvd + 1;
         end
     end
