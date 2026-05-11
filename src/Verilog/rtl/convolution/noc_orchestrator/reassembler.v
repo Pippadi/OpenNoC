@@ -59,8 +59,6 @@ wire [$clog2(SEG_WIDTH/CHUNK_WIDTH)-1:0] chunk_in_idx = noc_in_data[2*($clog2(NO
 wire [$clog2(NOC_Y)-1:0] pe_y_idx = noc_in_data[2*($clog2(NOC_X)+$clog2(NOC_Y))-1 -: $clog2(NOC_Y)];
 wire [$clog2(NOC_X)-1:0] pe_x_idx = noc_in_data[($clog2(NOC_X)+$clog2(NOC_Y)) +: $clog2(NOC_X)];
 
-//initial $monitor("Chunk %d %h from x%d y%d for line %d", chunk_in_idx, chunk_in, pe_x_idx, pe_y_idx, pe_seg_line);
-
 reg buf_line_clears [0:NOC_X-1][0:NOC_Y-1];
 wire [SEG_WIDTH*PIX_WIDTH-1:0] buf_line_outs [0:NOC_X-1][0:NOC_Y-1];
 wire [NOC_X*NOC_Y-1:0] buf_line_valids;
@@ -130,7 +128,7 @@ always @ (posedge clk) begin
                     out_line_valid <= 0;
                     state <= CLEAR;
                 end else
-                    out_line_valid <= line_isnt_padding;
+                    out_line_valid <= 1;
             end
 
             CLEAR: begin

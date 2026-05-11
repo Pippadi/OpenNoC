@@ -14,17 +14,17 @@
 // Segment width is calculated as (IMG_WIDTH / SEG_CNT_X) + (floor(KERN_X/2) * 4). Ensure CHUNK_WIDTH evenly
 // divides segment width. Also ensure that the segment X and Y counts evenly divide the image width
 // and height respectively.
-`define CHUNK_WIDTH 14 // In pixels
-`define SEG_CNT_X 4
-`define SEG_CNT_Y 4
-`define NOC_X 4 // NoC X dimension (number of columns of PEs)
-`define NOC_Y 4 // NoC Y dimension (number of rows of PEs)
+`define CHUNK_WIDTH 13 // In pixels
+`define SEG_CNT_X 2
+`define SEG_CNT_Y 2
+`define NOC_X 2 // NoC X dimension (number of columns of PEs)
+`define NOC_Y 2 // NoC Y dimension (number of rows of PEs)
 
 // The entire kernel must fit in one segment line (KERN_X*KERN_Y <= SEG_WIDTH).
-`define KERN_X 7 // In pixels
-`define KERN_Y 7
+`define KERN_X 3 // In pixels
+`define KERN_Y 3
 // Row-major
-`define KERN {49{8'd7}} // Box blur
+`define KERN {9{8'd7}} // Box blur
 `define KERN_FRAC_BITS 6
 
 `define DMA_DATA_WIDTH 32
@@ -54,6 +54,8 @@ module noc_top
     output wire img_line_out_valid,
     output wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx,
 
+    // output wire reas_noc_valid,
+
     output wire done
 );
 
@@ -77,7 +79,7 @@ wire [31:0] recvd_chunk_cnt; // For testing, counts the number of chunks receive
 
 // Output from reassembler
 wire [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_out;
-wire img_line_out_valid, img_line_out_ready;
+wire img_line_out_ready;
 
 // Directions are from the perspective of the PE
 wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
@@ -181,5 +183,7 @@ img_dma_iface #(
     .img_line_out(img_line_out),
     .img_line_out_valid(img_line_out_valid)
 );
+
+// assign reas_noc_valid = noc_in_valids[0];
 
 endmodule

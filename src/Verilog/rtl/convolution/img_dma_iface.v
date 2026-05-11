@@ -21,13 +21,11 @@ module img_dma_iface
     input wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
     input wire img_line_out_valid,
 
-    // AXI-Stream Slave Interface (From DMA Data Port)
     input  wire [DMA_DATA_WIDTH-1:0] mm2s_axis_tdata,
     input  wire mm2s_axis_tvalid,
     output wire mm2s_axis_tready,
     input  wire mm2s_axis_tlast,
 
-    // AXI-Stream Slave Interface (To DMA Control Port)
     output wire [DMA_DATA_WIDTH-1:0] s2mm_axis_tdata,
     output wire s2mm_axis_tvalid,
     input  wire s2mm_axis_tready,

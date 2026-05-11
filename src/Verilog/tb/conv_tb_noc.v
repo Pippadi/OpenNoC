@@ -1,214 +1,262 @@
 `timescale 1ns / 1ps
 
-// `define BMP_HEADER_SIZE 13
 `define BMP_HEADER_SIZE 1078
+// `define BMP_HEADER_SIZE 13
 `define IMG_WIDTH 512
 `define IMG_HEIGHT 512
 `define PIX_WIDTH 8
-
-// Most widths are in pixels, unless specified.
-
-// Each PE processes a segment of the image. Each segment is fed line-by-line to the PEs.
-// These lines are sent chunk-by-chunk over the NoC. Because NoC width is the ultimate parameter we want
-// to optimize for, we parameterize the chunk width separately from the segment width.
-// Segment width is calculated as (IMG_WIDTH / SEG_CNT_X) + (floor(KERN_X/2) * 4). Ensure CHUNK_WIDTH evenly
-// divides segment width. Also ensure that the segment X and Y counts evenly divide the image width
-// and height respectively.
-`define CHUNK_WIDTH 14 // In pixels
-`define SEG_CNT_X 4
-`define SEG_CNT_Y 4
-`define NOC_X 4 // NoC X dimension (number of columns of PEs)
-`define NOC_Y 4 // NoC Y dimension (number of rows of PEs)
-
-// The entire kernel must fit in one segment line (KERN_X*KERN_Y <= SEG_WIDTH).
-`define KERN_X 7 // In pixels
-`define KERN_Y 7
-// Row-major
-`define KERN {49{8'd7}} // Box blur
-`define KERN_FRAC_BITS 6
+`define SEG_CNT_X 2
+`define SEG_CNT_Y 2
 
 module conv_tb_noc();
 
+// Clock and reset
 reg clk;
 reg rst_n;
+
+// File handles
+integer input_file, output_file;
 reg [`PIX_WIDTH-1:0] imgData;
-integer file, out_file, i, j, line_recvd_cnt;
+integer i, j, idx;
 
-reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img [0:`IMG_HEIGHT*`SEG_CNT_X-1];
+// Image buffers
+localparam BYTES_PER_LINE = (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH / 8;
+localparam DMA_BEATS_PER_LINE = BYTES_PER_LINE / 4; // 32-bit DMA bus
+localparam TOTAL_LINES = `IMG_HEIGHT * `SEG_CNT_X;
 
-localparam PADDING_X = (`KERN_X / 2) * 2;
-localparam PADDING_Y = (`KERN_Y / 2) * 2;
+reg [7:0] img_in_mem [0:TOTAL_LINES-1][0:BYTES_PER_LINE-1];
+reg [7:0] img_out_mem [0:TOTAL_LINES-1][0:BYTES_PER_LINE-1];
 
-localparam SEG_WIDTH = `IMG_WIDTH / `SEG_CNT_X + 2*PADDING_X;
-localparam SEG_HEIGHT = `IMG_HEIGHT / `SEG_CNT_Y + 2*PADDING_Y;
-localparam SEG_CNT_TOT = `SEG_CNT_X * `SEG_CNT_Y;
+// AXI MM2S interface (testbench as master, sending input data)
+reg [31:0] mm2s_axis_tdata;
+reg mm2s_axis_tvalid;
+wire mm2s_axis_tready;
+reg mm2s_axis_tlast;
 
-localparam TYPE_WIDTH = 1;
-localparam TYPE_IMG = 1'b1;
-localparam TYPE_KERN = 1'b0;
+// AXI S2MM interface (testbench as slave, receiving output data)
+wire [31:0] s2mm_axis_tdata;
+wire s2mm_axis_tvalid;
+reg s2mm_axis_tready;
+wire s2mm_axis_tlast;
 
-localparam NOC_BIT_WIDTH = 2*($clog2(`NOC_X)+$clog2(`NOC_Y)) + $clog2(SEG_WIDTH/`CHUNK_WIDTH) + `CHUNK_WIDTH*`PIX_WIDTH + TYPE_WIDTH;
-
-wire done;
-// Input to dispatcher. Direction from the perspective of the dispatcher.
-wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_in_idx;
+// Control signals from noc_top
 wire img_line_in_ready;
-reg img_line_in_valid;
-reg [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_in;
-
-// Output from reassembler. Direction from the perspective of the reassembler.
-wire [$clog2(`IMG_HEIGHT*`SEG_CNT_X)-1:0] img_line_out_idx;
-wire [(`IMG_WIDTH/`SEG_CNT_X)*`PIX_WIDTH-1:0] img_line_out;
+wire [$clog2(TOTAL_LINES)-1:0] img_line_in_idx;
 wire img_line_out_valid;
-wire img_line_out_ready = 1;
+wire [$clog2(TOTAL_LINES)-1:0] img_line_out_idx;
+wire done;
 
-// Directions are from the perspective of the PE
-wire [`NOC_X*`NOC_Y-1:0] noc_out_valids;
-wire [NOC_BIT_WIDTH*`NOC_X*`NOC_Y-1:0] noc_out_datas;
-wire [`NOC_X*`NOC_Y-1:0] noc_out_readies;
-wire [`NOC_X*`NOC_Y-1:0] noc_in_valids;
-wire [NOC_BIT_WIDTH*`NOC_X*`NOC_Y-1:0] noc_in_datas;
-wire [`NOC_X*`NOC_Y-1:0] noc_in_readies;
-
-conv_pe_insts #(
-    .PIX_WIDTH(`PIX_WIDTH),
-    .NOC_X(`NOC_X),
-    .NOC_Y(`NOC_Y),
-    .IMG_WIDTH(`IMG_WIDTH),
-    .IMG_HEIGHT(`IMG_HEIGHT),
-    .CHUNK_WIDTH(`CHUNK_WIDTH),
-    .SEG_CNT_X(`SEG_CNT_X),
-    .SEG_CNT_Y(`SEG_CNT_Y),
-    .TYPE_WIDTH(TYPE_WIDTH),
-    .TYPE_IMG(TYPE_IMG),
-    .TYPE_KERN(TYPE_KERN),
-    .KERN_X(`KERN_X),
-    .KERN_Y(`KERN_Y),
-    .KERN(`KERN),
-    .KERN_FRAC_BITS(`KERN_FRAC_BITS)
-) PE_Insts (
+// Instantiate noc_top
+noc_top DUT (
     .rst_n(rst_n),
     .clk(clk),
 
-    .noc_out_valids(noc_out_valids),
-    .noc_out_datas(noc_out_datas),
-    .noc_out_readies(noc_out_readies),
+    // MM2S interface (input data from memory)
+    .mm2s_axis_tdata(mm2s_axis_tdata),
+    .mm2s_axis_tvalid(mm2s_axis_tvalid),
+    .mm2s_axis_tready(mm2s_axis_tready),
+    .mm2s_axis_tlast(mm2s_axis_tlast),
 
-    .noc_in_valids(noc_in_valids),
-    .noc_in_datas(noc_in_datas),
-    .noc_in_readies(noc_in_readies),
+    // S2MM interface (output data to memory)
+    .s2mm_axis_tdata(s2mm_axis_tdata),
+    .s2mm_axis_tvalid(s2mm_axis_tvalid),
+    .s2mm_axis_tready(s2mm_axis_tready),
+    .s2mm_axis_tlast(s2mm_axis_tlast),
 
-    // Orchestrator interfaces
+    // Control signals
     .img_line_in_ready(img_line_in_ready),
     .img_line_in_idx(img_line_in_idx),
-    .img_line_in(img_line_in),
-    .img_line_in_valid(img_line_in_valid),
-    .img_line_out(img_line_out),
-    .img_line_out_idx(img_line_out_idx),
     .img_line_out_valid(img_line_out_valid),
-    .img_line_out_ready(img_line_out_ready),
-
-    // For testing
+    .img_line_out_idx(img_line_out_idx),
     .done(done)
 );
 
-openNocTop #(
-    .X(`NOC_X),
-    .Y(`NOC_Y),
-    .data_width(NOC_BIT_WIDTH-$clog2(`NOC_X)-$clog2(`NOC_Y)),
-    .total_width(NOC_BIT_WIDTH),
-    .if_width(NOC_BIT_WIDTH*`NOC_X*`NOC_Y),
-    .pkt_no_field_size(0)
-) NoC (
-    .clk(clk),
-    .rstn(rst_n),
-
-    .r_data_pe(noc_out_datas),
-    .r_valid_pe(noc_out_valids),
-    .r_ready_pe(noc_out_readies),
-
-    .w_ready_pe(noc_in_readies),
-    .w_data_pe(noc_in_datas),
-    .w_valid_pe(noc_in_valids)
-);
-
+// Clock generation
 initial begin
     clk = 1'b0;
     forever #5 clk = ~clk;
 end
 
-// Timeout for infinite loop and short simulation runs when using dumpvars
+// Timeout
 initial begin
-    #10_000_000;
-    $fclose(file);
-    $fclose(out_file);
+    #25_000_000;  // 6ms timeout
+    $display("[TB] Simulation timeout at %t", $time);
     $finish;
 end
 
-genvar x, y;
-generate
-    for (x = 0; x < `NOC_X; x = x + 1) begin: map_x
-        for (y = 0; y < `NOC_Y; y = y + 1) begin: map_y
-            wire busy = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_busies[x][y];
-            wire [$clog2(SEG_CNT_TOT)-1:0] seg = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_map[x][y];
-            wire [$clog2(SEG_HEIGHT)-1:0] seg_line = PE_Insts.xs[0].ys[0].orchestrator.Orchestrator.pe_seg_line_map[x][y];
+// ============================================================================
+// MM2S Master - Feed input image data over AXI
+// ============================================================================
+
+reg mm2s_active;
+reg [$clog2(DMA_BEATS_PER_LINE)-1:0] mm2s_beat_idx;
+reg [$clog2(TOTAL_LINES)-1:0] mm2s_line_idx;
+reg mm2s_clear;
+
+always @(posedge clk) begin
+    if (~rst_n) begin
+        mm2s_axis_tvalid <= 0;
+        mm2s_axis_tdata <= 0;
+        mm2s_axis_tlast <= 0;
+        mm2s_active <= 0;
+        mm2s_beat_idx <= 0;
+        mm2s_line_idx <= 0;
+        mm2s_clear <= 0;
+    end else begin
+        // Start MM2S transfer when orchestrator requests a line
+        if (img_line_in_ready && !mm2s_active && !mm2s_clear) begin
+            mm2s_active <= 1;
+            mm2s_line_idx <= img_line_in_idx;
+            mm2s_beat_idx <= 0;
+            mm2s_axis_tvalid <= 1;
+            mm2s_axis_tdata <= {img_in_mem[img_line_in_idx][3],
+                                img_in_mem[img_line_in_idx][2],
+                                img_in_mem[img_line_in_idx][1],
+                                img_in_mem[img_line_in_idx][0]};
+            mm2s_axis_tlast <= (DMA_BEATS_PER_LINE == 1);
+            mm2s_clear <= 0;
+        end else if (mm2s_active && mm2s_axis_tvalid && mm2s_axis_tready && !mm2s_clear) begin
+            // Data accepted, advance to next beat
+            mm2s_beat_idx <= mm2s_beat_idx + 1;
+
+            if (mm2s_beat_idx == DMA_BEATS_PER_LINE - 1) begin
+                // Last beat
+                mm2s_axis_tvalid <= 0;
+                mm2s_axis_tlast <= 0;
+                mm2s_active <= 0;
+                mm2s_clear <= 1;
+            end else begin
+                // More beats coming
+                mm2s_axis_tlast <= (mm2s_beat_idx == DMA_BEATS_PER_LINE - 2);
+                mm2s_axis_tdata <= {img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+3],
+                                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+2],
+                                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+1],
+                                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+0]};
+            end
+        end
+        if (mm2s_clear) begin // Give the orchestrator a cycle to deassert ready
+            mm2s_clear <= 0;
         end
     end
-endgenerate
+end
 
-reg [7:0] line_temp [0:(`IMG_WIDTH/`SEG_CNT_X)-1];
+// ============================================================================
+// S2MM Slave - Receive output image data over AXI
+// ============================================================================
+
+reg [$clog2(DMA_BEATS_PER_LINE)-1:0] s2mm_beat_idx;
+reg [$clog2(TOTAL_LINES)-1:0] s2mm_line_idx;
+reg s2mm_active;
+reg s2mm_line_complete;
+
+always @(posedge clk) begin
+    if (~rst_n) begin
+        s2mm_axis_tready <= 1;
+        s2mm_beat_idx <= 0;
+        s2mm_line_idx <= 0;
+        s2mm_active <= 0;
+        s2mm_line_complete <= 0;
+    end else begin
+        // Always ready to accept data
+        s2mm_axis_tready <= 1;
+        s2mm_line_complete <= 0;
+
+        // Capture data when valid
+        if (s2mm_axis_tvalid && s2mm_axis_tready) begin
+            if (!s2mm_active) begin
+                // Start of new transfer - latch the line index
+                s2mm_active <= 1;
+                s2mm_line_idx <= img_line_out_idx;
+                s2mm_beat_idx <= 0;
+            end
+
+            // Store the 4 bytes from this beat
+            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[7:0];
+            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[15:8];
+            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[23:16];
+            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[31:24];
+
+            if (s2mm_axis_tlast) begin
+                // End of line
+                s2mm_active <= 0;
+                s2mm_beat_idx <= 0;
+                s2mm_line_complete <= 1;
+                $display("[TB] S2MM: Received output line %d at time %t", s2mm_line_idx, $time);
+            end else begin
+                s2mm_beat_idx <= s2mm_beat_idx + 1;
+            end
+        end
+    end
+end
+
+// ============================================================================
+// File I/O Control
+// ============================================================================
 
 initial begin
-    // Uncomment for value change dump
     $dumpfile("conv_tb_noc.fst");
     $dumpvars(0, conv_tb_noc);
 
-    // file = $fopen("../../../data/gray_64x64.pgm", "rb");
-    // out_file = $fopen("../../../data/out_gray_64x64.pgm", "wb");
-    // file = $fopen("../../../../../../../data/peppers512.bmp", "rb");        // Uncomment when
-    // out_file = $fopen("../../../../../../../data/outputPeppers.bmp", "wb"); // using Vivado
-    file = $fopen("../../../data/peppers512.bmp","rb");          // Uncomment when
-    out_file = $fopen("../../../data/outputPeppers.bmp","wb");   // using Icarus Verilog/Verilator
-    for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
-        $fscanf(file, "%c", imgData);
-        $fwrite(out_file, "%c", imgData);
+    // Load input image from file
+    $display("[TB] Loading input image from peppers512.bmp...");
+    input_file = $fopen("../../../data/peppers512.bmp", "rb");
+    // input_file = $fopen("../../../data/gray_64x64.pgm", "rb");
+    if (input_file == 0) begin
+        $display("[TB] ERROR: Could not open input file ../../../data/peppers512.bmp");
+        $finish;
     end
 
-    // Have to do this, because $fread's count argument is too small to read all of it at once
-    for (i = 0; i < `IMG_HEIGHT*`SEG_CNT_X; i = i + 1) begin
-        $fread(line_temp, file, 0, `IMG_WIDTH/`SEG_CNT_X);
-        for (j = 0; j < `IMG_WIDTH/`SEG_CNT_X; j = j + 1) begin
-            img[i][j*`PIX_WIDTH +: `PIX_WIDTH] = line_temp[j];
+    output_file = $fopen("../../../data/outputPeppers.bmp", "wb");
+    // output_file = $fopen("../../../data/out_gray_64x64.pgm", "wb");
+    if (output_file == 0) begin
+        $display("[TB] ERROR: Could not open output file");
+        $finish;
+    end
+
+    // Copy BMP header
+    for (i = 0; i < `BMP_HEADER_SIZE; i = i + 1) begin
+        $fscanf(input_file, "%c", imgData);
+        $fwrite(output_file, "%c", imgData);
+    end
+
+    // Load image data
+    for (i = 0; i < TOTAL_LINES; i = i + 1) begin
+        for (j = 0; j < BYTES_PER_LINE; j = j + 1) begin
+            $fscanf(input_file, "%c", imgData);
+            img_in_mem[i][j] = imgData;
         end
     end
+    $display("[TB] Image loaded: %d lines x %d bytes per line", TOTAL_LINES, BYTES_PER_LINE);
 
+    // Reset
     rst_n = 0;
     #100;
     rst_n = 1;
     #100;
 
-    line_recvd_cnt = 0;
-    while (1) begin
-        @(posedge clk);
-        if (img_line_in_ready) begin
-            img_line_in = img[img_line_in_idx];
-            img_line_in_valid = 1;
-        end else
-            img_line_in_valid = 0;
+    $display("[TB] Simulation started at time %t", $time);
+end
 
-        if (img_line_out_valid & img_line_out_ready) begin
-            // $display("%d %x", img_line_out_idx, img_line_out);
-            // Each output line corresponds to `IMG_WIDTH/`SEG_CNT_X pixels, need to account for BMP header and previous lines
-            $fseek(out_file, `BMP_HEADER_SIZE + img_line_out_idx * (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH/8, 0);
-            for (i = 0; i < `IMG_WIDTH/`SEG_CNT_X; i = i + 1)
-                $fwrite(out_file, "%c", img_line_out[8*i +: 8]);
+// Write output lines to file as they complete
+always @(posedge clk) begin
+    if (s2mm_line_complete) begin
+        // Line just completed, write it
+        for (idx = 0; idx < BYTES_PER_LINE; idx = idx + 1) begin
+            $fwrite(output_file, "%c", img_out_mem[s2mm_line_idx][idx]);
         end
+        $display("[TB] Wrote output line %d to file", s2mm_line_idx);
+    end
+end
 
-        if (done) begin
-            $fclose(file);
-            $fclose(out_file);
-            $finish;
-        end
+// Monitor done signal
+always @(posedge clk) begin
+    if (done) begin
+        $display("[TB] Done signal asserted at time %t", $time);
+        #100;
+        $fclose(input_file);
+        $fclose(output_file);
+        $display("[TB] Simulation complete!");
+        $finish;
     end
 end
 
