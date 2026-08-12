@@ -32,7 +32,6 @@ module seg_prepper
     input wire [SEG_W_NOPAD*PIX_WIDTH-1:0] img_line_in,
     input wire img_line_in_valid,
 
-    // Interface to dispatcher state machine
     input wire segment_line_ready,
     output reg [SEG_WIDTH*PIX_WIDTH-1:0] segment_line,
     output reg segment_line_valid
@@ -51,8 +50,8 @@ wire [$clog2(SEG_CNT_X*IMG_HEIGHT)-1:0] this_line_idx = line_idx_y * SEG_CNT_X +
 // the image, or the segment line number is the bottommost, and the segment is
 // along the bottom of the image, the line must be zero (zero padding).
 wire line_is_top_bottom =
-    (pe_seg / SEG_CNT_X == 0 && pe_seg_line_no < PADDING_X) ||
-    (pe_seg / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no > SEG_HEIGHT-PADDING_Y);
+(pe_seg / SEG_CNT_X == 0 && pe_seg_line_no < PADDING_X) ||
+(pe_seg / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no > SEG_HEIGHT-PADDING_Y);
 
 
 always @ (*) begin
@@ -85,44 +84,44 @@ always @ (posedge clk) begin
         next_img_line <= {((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH){1'b0}};
     end else begin
         case (state)
-        IDLE: begin
-            segment_line_valid <= 0;
-            if (segment_line_ready) begin
-                state <= line_is_top_bottom ? DONE : READ_THIS_LINE;
+            IDLE: begin
+                segment_line_valid <= 0;
+                if (segment_line_ready) begin
+                    state <= line_is_top_bottom ? DONE : READ_THIS_LINE;
+                end
             end
-        end
-        READ_THIS_LINE: begin
-            img_line_in_idx <= this_line_idx;
-            if (img_line_in_valid) begin
-                this_img_line <= img_line_in;
-                state <= READ_PREV_LINE;
-                img_line_in_ready <= 0;
-            end else
-                img_line_in_ready <= 1;
-        end
-        READ_PREV_LINE: begin
-            img_line_in_idx <= this_line_idx - 1;
-            if (img_line_in_valid) begin
-                prev_img_line <= img_line_in;
-                state <= READ_NEXT_LINE;
-                img_line_in_ready <= 0;
-            end else
-                img_line_in_ready <= 1;
-        end
-        READ_NEXT_LINE: begin
-            img_line_in_idx <= this_line_idx + 1;
-            if (img_line_in_valid) begin
-                next_img_line <= img_line_in;
-                state <= DONE;
-                img_line_in_ready <= 0;
-            end else
-                img_line_in_ready <= 1;
-        end
-        DONE: begin
-            segment_line_valid <= 1;
-            state <= segment_line_ready ? DONE : IDLE;
-        end
-        default: state <= IDLE;
+            READ_THIS_LINE: begin
+                img_line_in_idx <= this_line_idx;
+                if (img_line_in_valid & img_line_in_ready) begin
+                    this_img_line <= img_line_in;
+                    state <= READ_PREV_LINE;
+                    img_line_in_ready <= 0;
+                end else
+                    img_line_in_ready <= 1;
+            end
+            READ_PREV_LINE: begin
+                img_line_in_idx <= this_line_idx - 1;
+                if (img_line_in_valid & img_line_in_ready) begin
+                    prev_img_line <= img_line_in;
+                    state <= READ_NEXT_LINE;
+                    img_line_in_ready <= 0;
+                end else
+                    img_line_in_ready <= 1;
+            end
+            READ_NEXT_LINE: begin
+                img_line_in_idx <= this_line_idx + 1;
+                if (img_line_in_valid & img_line_in_ready) begin
+                    next_img_line <= img_line_in;
+                    state <= DONE;
+                    img_line_in_ready <= 0;
+                end else
+                    img_line_in_ready <= 1;
+            end
+            DONE: begin
+                segment_line_valid <= 1;
+                state <= segment_line_ready ? DONE : IDLE;
+            end
+            default: state <= IDLE;
         endcase
     end
 end

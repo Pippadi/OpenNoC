@@ -40,8 +40,8 @@ reg s2mm_axis_tready;
 wire s2mm_axis_tlast;
 
 // Control signals from noc_top
-wire img_line_in_ready;
-wire [$clog2(TOTAL_LINES)-1:0] img_line_in_idx;
+wire dma_read_ready;
+wire [$clog2(TOTAL_LINES)-1:0] dma_read_line_idx;
 wire img_line_out_valid;
 wire [$clog2(TOTAL_LINES)-1:0] img_line_out_idx;
 wire done;
@@ -51,21 +51,18 @@ noc_top DUT (
     .rst_n(rst_n),
     .clk(clk),
 
-    // MM2S interface (input data from memory)
     .mm2s_axis_tdata(mm2s_axis_tdata),
     .mm2s_axis_tvalid(mm2s_axis_tvalid),
     .mm2s_axis_tready(mm2s_axis_tready),
     .mm2s_axis_tlast(mm2s_axis_tlast),
 
-    // S2MM interface (output data to memory)
     .s2mm_axis_tdata(s2mm_axis_tdata),
     .s2mm_axis_tvalid(s2mm_axis_tvalid),
     .s2mm_axis_tready(s2mm_axis_tready),
     .s2mm_axis_tlast(s2mm_axis_tlast),
 
-    // Control signals
-    .img_line_in_ready(img_line_in_ready),
-    .img_line_in_idx(img_line_in_idx),
+    .dma_read_ready(dma_read_ready),
+    .dma_read_line_idx(dma_read_line_idx),
     .img_line_out_valid(img_line_out_valid),
     .img_line_out_idx(img_line_out_idx),
     .done(done)
@@ -89,7 +86,7 @@ end
 // ============================================================================
 
 reg mm2s_active;
-reg [$clog2(DMA_BEATS_PER_LINE)-1:0] mm2s_beat_idx;
+reg [$clog2(DMA_BEATS_PER_LINE+1)-1:0] mm2s_beat_idx;
 reg [$clog2(TOTAL_LINES)-1:0] mm2s_line_idx;
 reg mm2s_clear;
 
@@ -101,41 +98,27 @@ always @(posedge clk) begin
         mm2s_active <= 0;
         mm2s_beat_idx <= 0;
         mm2s_line_idx <= 0;
-        mm2s_clear <= 0;
     end else begin
         // Start MM2S transfer when orchestrator requests a line
-        if (img_line_in_ready && !mm2s_active && !mm2s_clear) begin
+        if (dma_read_ready && !mm2s_active) begin
             mm2s_active <= 1;
-            mm2s_line_idx <= img_line_in_idx;
+            mm2s_line_idx <= dma_read_line_idx;
             mm2s_beat_idx <= 0;
-            mm2s_axis_tvalid <= 1;
-            mm2s_axis_tdata <= {img_in_mem[img_line_in_idx][3],
-                                img_in_mem[img_line_in_idx][2],
-                                img_in_mem[img_line_in_idx][1],
-                                img_in_mem[img_line_in_idx][0]};
-            mm2s_axis_tlast <= (DMA_BEATS_PER_LINE == 1);
-            mm2s_clear <= 0;
-        end else if (mm2s_active && mm2s_axis_tvalid && mm2s_axis_tready && !mm2s_clear) begin
-            // Data accepted, advance to next beat
-            mm2s_beat_idx <= mm2s_beat_idx + 1;
+        end else if (mm2s_active) begin
+            mm2s_beat_idx <= mm2s_beat_idx + (mm2s_axis_tready & mm2s_axis_tvalid);
 
-            if (mm2s_beat_idx == DMA_BEATS_PER_LINE - 1) begin
-                // Last beat
+            if (mm2s_beat_idx == DMA_BEATS_PER_LINE) begin
                 mm2s_axis_tvalid <= 0;
                 mm2s_axis_tlast <= 0;
                 mm2s_active <= 0;
-                mm2s_clear <= 1;
             end else begin
-                // More beats coming
-                mm2s_axis_tlast <= (mm2s_beat_idx == DMA_BEATS_PER_LINE - 2);
-                mm2s_axis_tdata <= {img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+3],
-                                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+2],
-                                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+1],
-                                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx+1)*4+0]};
+                mm2s_axis_tvalid <= 1;
+                mm2s_axis_tlast <= (mm2s_beat_idx == DMA_BEATS_PER_LINE - 1);
+                mm2s_axis_tdata <= {img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+0],
+                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+1],
+                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+2],
+                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+3]};
             end
-        end
-        if (mm2s_clear) begin // Give the orchestrator a cycle to deassert ready
-            mm2s_clear <= 0;
         end
     end
 end
@@ -145,48 +128,35 @@ end
 // ============================================================================
 
 reg [$clog2(DMA_BEATS_PER_LINE)-1:0] s2mm_beat_idx;
-reg [$clog2(TOTAL_LINES)-1:0] s2mm_line_idx;
-reg s2mm_active;
 reg s2mm_line_complete;
 
 always @(posedge clk) begin
     if (~rst_n) begin
         s2mm_axis_tready <= 1;
-        s2mm_beat_idx <= 0;
-        s2mm_line_idx <= 0;
-        s2mm_active <= 0;
+        s2mm_beat_idx <= BYTES_PER_LINE;
         s2mm_line_complete <= 0;
     end else begin
         // Always ready to accept data
         s2mm_axis_tready <= 1;
-        s2mm_line_complete <= 0;
+        s2mm_line_complete <= s2mm_axis_tlast;
 
         // Capture data when valid
         if (s2mm_axis_tvalid && s2mm_axis_tready) begin
-            if (!s2mm_active) begin
-                // Start of new transfer - latch the line index
-                s2mm_active <= 1;
-                s2mm_line_idx <= img_line_out_idx;
-                s2mm_beat_idx <= 0;
-            end
-
             // Store the 4 bytes from this beat
-            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[7:0];
-            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[15:8];
-            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[23:16];
-            img_out_mem[s2mm_line_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[31:24];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[7:0];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[15:8];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[23:16];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[31:24];
 
-            if (s2mm_axis_tlast) begin
-                // End of line
-                s2mm_active <= 0;
-                s2mm_beat_idx <= 0;
-                s2mm_line_complete <= 1;
-                $display("[TB] S2MM: Received output line %d at time %t", s2mm_line_idx, $time);
-            end else begin
-                s2mm_beat_idx <= s2mm_beat_idx + 1;
-            end
-        end
-    end
+           if (s2mm_axis_tlast) begin
+               // End of line
+               s2mm_beat_idx <= BYTES_PER_LINE;
+               $display("[TB] S2MM: Received output line %d at time %t", img_line_out_idx, $time);
+           end else begin
+               s2mm_beat_idx <=s2mm_beat_idx - 1;
+           end
+       end
+   end
 end
 
 // ============================================================================
@@ -241,10 +211,11 @@ end
 always @(posedge clk) begin
     if (s2mm_line_complete) begin
         // Line just completed, write it
+        $fseek(output_file, `BMP_HEADER_SIZE+img_line_out_idx*BYTES_PER_LINE, 0);
         for (idx = 0; idx < BYTES_PER_LINE; idx = idx + 1) begin
-            $fwrite(output_file, "%c", img_out_mem[s2mm_line_idx][idx]);
+            $fwrite(output_file, "%c", img_out_mem[img_line_out_idx][idx]);
         end
-        $display("[TB] Wrote output line %d to file", s2mm_line_idx);
+        $display("[TB] Wrote output line %d to file", img_line_out_idx);
     end
 end
 
