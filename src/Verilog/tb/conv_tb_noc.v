@@ -133,7 +133,7 @@ reg s2mm_line_complete;
 always @(posedge clk) begin
     if (~rst_n) begin
         s2mm_axis_tready <= 1;
-        s2mm_beat_idx <= BYTES_PER_LINE;
+        s2mm_beat_idx <= BYTES_PER_LINE-1;
         s2mm_line_complete <= 0;
     end else begin
         // Always ready to accept data
@@ -148,15 +148,15 @@ always @(posedge clk) begin
             img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[23:16];
             img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[31:24];
 
-           if (s2mm_axis_tlast) begin
-               // End of line
-               s2mm_beat_idx <= BYTES_PER_LINE;
-               $display("[TB] S2MM: Received output line %d at time %t", img_line_out_idx, $time);
-           end else begin
-               s2mm_beat_idx <=s2mm_beat_idx - 1;
-           end
-       end
-   end
+            if (s2mm_axis_tlast) begin
+                // End of line
+                s2mm_beat_idx <= BYTES_PER_LINE-1;
+                $display("[TB] S2MM: Received output line %d at time %t", img_line_out_idx, $time);
+            end else begin
+                s2mm_beat_idx <= s2mm_beat_idx - 1;
+            end
+        end
+    end
 end
 
 // ============================================================================

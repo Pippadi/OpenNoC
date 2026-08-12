@@ -35,19 +35,19 @@ module reassembler
     input clk,
 
     // AXI-stream-like interface, see section 2.2 here:
-    // https://documentation-service.arm.com/static/64819f1516f0f201aa6b963c
+    // https://documentation-service.arm.com/static/64819f1516f0f201aa6b963c ,
     input wire noc_in_valid,
-    // Pixel data (chunk), Chunk index, Source X, Source Y, Dest X, Dest Y
+    // Pixel data (chunk), Chunk index, Source X, Source Y, Dest X, Dest Y ,
     input wire [NOC_BIT_WIDTH-1:0] noc_in_data,
     output wire noc_in_ready,
 
     output reg [$clog2(NOC_X)-1:0] out_line_pe_x,
     output reg [$clog2(NOC_Y)-1:0] out_line_pe_y,
 
-    // Combinationally read from out_line_pe_{x,y}
+    // Combinationally read from out_line_pe_{x,y} ,
     input wire [$clog2(SEG_HEIGHT)-1:0] pe_seg_line,
 
-    // Segment line to be output
+    // Segment line to be output ,
     input wire out_line_ready,
     output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] out_line,
     output reg out_line_valid,
@@ -107,38 +107,38 @@ always @ (posedge clk) begin
         for (i = 0; i < NOC_X; i = i + 1)
             for (j = 0; j < NOC_Y; j = j + 1)
                 buf_line_clears[i][j] <= 0;
-        state <= IDLE;
-    end else begin
-        case (state)
-            IDLE: begin
-                out_line_valid <= 0;
-                inc_pe_seg_line <= 0;
-                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
-                if (|buf_line_valids) begin
-                    out_line_pe_x <= out_line_pe_idx / NOC_Y;
-                    out_line_pe_y <= out_line_pe_idx % NOC_Y;
-                    state <= OUTPUT;
-                end
-            end
-
-            OUTPUT: begin
-                // Don't send vertical padding lines
-                if ((out_line_ready & out_line_valid) | ~line_isnt_padding) begin
-                    inc_pe_seg_line <= 1;
+            state <= IDLE;
+        end else begin
+            case (state)
+                IDLE: begin
                     out_line_valid <= 0;
-                    state <= CLEAR;
-                end else
-                    out_line_valid <= 1;
-            end
+                    inc_pe_seg_line <= 0;
+                    buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
+                    if (|buf_line_valids) begin
+                        out_line_pe_x <= out_line_pe_idx / NOC_Y;
+                        out_line_pe_y <= out_line_pe_idx % NOC_Y;
+                        state <= OUTPUT;
+                    end
+                end
 
-            CLEAR: begin
-                buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
-                out_line_valid <= 0;
-                inc_pe_seg_line <= 0;
-                state <= WAIT_CLEAR;
-            end
+                OUTPUT: begin
+                    // Don't send vertical padding lines
+                    if ((out_line_ready & out_line_valid) | ~line_isnt_padding) begin
+                        inc_pe_seg_line <= 1;
+                        out_line_valid <= 0;
+                        state <= CLEAR;
+                    end else
+                        out_line_valid <= 1;
+                end
 
-            WAIT_CLEAR: begin // Give the line chunk buffer a cycle to set its valid signal to 0
+                CLEAR: begin
+                    buf_line_clears[out_line_pe_x][out_line_pe_y] <= 1;
+                    out_line_valid <= 0;
+                    inc_pe_seg_line <= 0;
+                    state <= WAIT_CLEAR;
+                end
+
+                WAIT_CLEAR: begin // Give the line chunk buffer a cycle to set its valid signal to 0
                 buf_line_clears[out_line_pe_x][out_line_pe_y] <= 0;
                 state <= IDLE;
             end
@@ -150,6 +150,6 @@ end
 // but that's highly unlikely.
 assign noc_in_ready = ~(state == OUTPUT && out_line_pe_x == pe_x_idx && out_line_pe_y == pe_y_idx);
 
-assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y][(PADDING_X + 1)*PIX_WIDTH +: PIX_WIDTH*(IMG_WIDTH/SEG_CNT_X)];
+assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y][(PADDING_X+1)*PIX_WIDTH +: PIX_WIDTH*(IMG_WIDTH/SEG_CNT_X)];
 
 endmodule

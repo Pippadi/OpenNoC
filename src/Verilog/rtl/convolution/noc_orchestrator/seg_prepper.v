@@ -50,7 +50,7 @@ wire [$clog2(SEG_CNT_X*IMG_HEIGHT)-1:0] this_line_idx = line_idx_y * SEG_CNT_X +
 // the image, or the segment line number is the bottommost, and the segment is
 // along the bottom of the image, the line must be zero (zero padding).
 wire line_is_top_bottom =
-(pe_seg / SEG_CNT_X == 0 && pe_seg_line_no < PADDING_X) ||
+(pe_seg / SEG_CNT_X == 0 && pe_seg_line_no < PADDING_Y) ||
 (pe_seg / SEG_CNT_X == SEG_CNT_Y-1 && pe_seg_line_no > SEG_HEIGHT-PADDING_Y);
 
 
@@ -64,9 +64,9 @@ always @ (*) begin
         else
             segment_line[PADDING_X*PIX_WIDTH-1:0] = prev_img_line[SEG_W_NOPAD*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X]; // Right halo from previous segment
         if (seg_idx_x == SEG_CNT_X - 1)
-            segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = 0; // Left halo
-        else
             segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = next_img_line[0 +: PIX_WIDTH*PADDING_X]; // Left halo from next segment
+        else
+            segment_line[SEG_WIDTH*PIX_WIDTH-1 -: PIX_WIDTH*PADDING_X] = 0; // Left halo
     end
 end
 
