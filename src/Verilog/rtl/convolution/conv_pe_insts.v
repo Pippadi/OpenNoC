@@ -23,21 +23,16 @@ module conv_pe_insts
     parameter KERN = {8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7, 8'd7},
     parameter KERN_FRAC_BITS = 6,
 
-    localparam PADDING_X = (KERN_X / 2) * 2,
-    localparam PADDING_Y = (KERN_Y / 2) * 2,
+    parameter PADDING_X = (KERN_X / 2) * 2,
 
-    localparam SEG_WIDTH = IMG_WIDTH / SEG_CNT_X + 2*PADDING_X,
-    localparam SEG_HEIGHT = IMG_HEIGHT / SEG_CNT_Y + 2*PADDING_Y,
-    localparam SEG_CNT_TOT = SEG_CNT_X * SEG_CNT_Y,
+    parameter SEG_WIDTH = IMG_WIDTH / SEG_CNT_X + 2*PADDING_X,
 
-    localparam CHUNK_CNT_WIDTH = $clog2(SEG_WIDTH/CHUNK_WIDTH),
-    localparam NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH + TYPE_WIDTH
+    parameter NOC_BIT_WIDTH = 2*($clog2(NOC_X)+$clog2(NOC_Y)) + $clog2(SEG_WIDTH/CHUNK_WIDTH) + CHUNK_WIDTH*PIX_WIDTH + TYPE_WIDTH
 )
 (
     input  wire clk,
     input  wire rst_n,
 
-    //PE interfaces
     output wire [(NOC_X*NOC_Y)-1:0]              noc_out_valids,
     output wire [(NOC_BIT_WIDTH*NOC_X*NOC_Y)-1:0] noc_out_datas,
     input  wire [(NOC_X*NOC_Y)-1:0]              noc_out_readies,
@@ -46,7 +41,6 @@ module conv_pe_insts
     input wire [(NOC_BIT_WIDTH*NOC_X*NOC_Y)-1:0]  noc_in_datas,
     output wire [(NOC_X*NOC_Y)-1:0]              noc_in_readies,
 
-    // Orchestrator interfaces
     output wire img_line_in_ready,
     output wire [$clog2(SEG_CNT_X * IMG_HEIGHT)-1:0] img_line_in_idx,
     input wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_in,
@@ -57,86 +51,85 @@ module conv_pe_insts
     output wire img_line_out_valid,
     input wire img_line_out_ready,
 
-    // For testing
     output wire done
 );
 
 genvar x, y;
 generate
-for (x = 0; x < NOC_X; x = x + 1) begin: xs
-    for (y = 0; y < NOC_Y; y = y + 1) begin: ys
-        if(x==0 & y==0) begin: orchestrator
-			orchestrator #(
-                .PIX_WIDTH(PIX_WIDTH),
-                .NOC_X(NOC_X),
-                .NOC_Y(NOC_Y),
-                .IMG_WIDTH(IMG_WIDTH),
-                .IMG_HEIGHT(IMG_HEIGHT),
-                .CHUNK_WIDTH(CHUNK_WIDTH),
-                .SEG_CNT_X(SEG_CNT_X),
-                .SEG_CNT_Y(SEG_CNT_Y),
-                .TYPE_WIDTH(TYPE_WIDTH),
-                .TYPE_IMG(TYPE_IMG),
-                .TYPE_KERN(TYPE_KERN),
-                .KERN_X(KERN_X),
-                .KERN_Y(KERN_Y),
-                .KERN(KERN)
-            ) Orchestrator (
-                .rst_n(rst_n),
-                .clk(clk),
+    for (x = 0; x < NOC_X; x = x + 1) begin: xs
+        for (y = 0; y < NOC_Y; y = y + 1) begin: ys
+            if(x==0 & y==0) begin: orchestrator
+                orchestrator #(
+                    .PIX_WIDTH(PIX_WIDTH),
+                    .NOC_X(NOC_X),
+                    .NOC_Y(NOC_Y),
+                    .IMG_WIDTH(IMG_WIDTH),
+                    .IMG_HEIGHT(IMG_HEIGHT),
+                    .CHUNK_WIDTH(CHUNK_WIDTH),
+                    .SEG_CNT_X(SEG_CNT_X),
+                    .SEG_CNT_Y(SEG_CNT_Y),
+                    .TYPE_WIDTH(TYPE_WIDTH),
+                    .TYPE_IMG(TYPE_IMG),
+                    .TYPE_KERN(TYPE_KERN),
+                    .KERN_X(KERN_X),
+                    .KERN_Y(KERN_Y),
+                    .KERN(KERN)
+                ) Orchestrator (
+                    .rst_n(rst_n),
+                    .clk(clk),
 
-                .img_line_in_ready(img_line_in_ready),
-                .img_line_in_idx(img_line_in_idx),
-                .img_line_in(img_line_in),
-                .img_line_in_valid(img_line_in_valid),
+                    .img_line_in_ready(img_line_in_ready),
+                    .img_line_in_idx(img_line_in_idx),
+                    .img_line_in(img_line_in),
+                    .img_line_in_valid(img_line_in_valid),
 
-                .img_line_out_idx(img_line_out_idx),
-                .img_line_out(img_line_out),
-                .img_line_out_valid(img_line_out_valid),
-                .img_line_out_ready(img_line_out_ready),
+                    .img_line_out_idx(img_line_out_idx),
+                    .img_line_out(img_line_out),
+                    .img_line_out_valid(img_line_out_valid),
+                    .img_line_out_ready(img_line_out_ready),
 
-                .noc_in_valid(noc_in_valids[x+NOC_X*y]),
-                .noc_in_data(noc_in_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-                .noc_in_ready(noc_in_readies[x+NOC_X*y]),
+                    .noc_in_valid(noc_in_valids[x+NOC_X*y]),
+                    .noc_in_data(noc_in_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
+                    .noc_in_ready(noc_in_readies[x+NOC_X*y]),
 
-                .noc_out_valid(noc_out_valids[x+NOC_X*y]),
-                .noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-                .noc_out_ready(noc_out_readies[x+NOC_X*y]),
+                    .noc_out_valid(noc_out_valids[x+NOC_X*y]),
+                    .noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
+                    .noc_out_ready(noc_out_readies[x+NOC_X*y]),
 
-                .done(done)
-            );
-        end else begin: conv_pe
-            conv_pe #(
-                .PIX_WIDTH(PIX_WIDTH),
-                .LINE_WIDTH(SEG_WIDTH),
-                .CHUNK_WIDTH(CHUNK_WIDTH),
-                .NOC_X(NOC_X),
-                .NOC_Y(NOC_Y),
-                .NOC_ADDR_X(x),
-                .NOC_ADDR_Y(y),
-                .NOC_REASSEMBLER_ADDR_X(0),
-                .NOC_REASSEMBLER_ADDR_Y(0),
-                .TYPE_WIDTH(TYPE_WIDTH),
-                .TYPE_IMG(TYPE_IMG),
-                .TYPE_KERN(TYPE_KERN),
-                .KERN_X(KERN_X),
-                .KERN_Y(KERN_Y),
-                .KERN_FRAC_BITS(KERN_FRAC_BITS)
-            ) ConvPE (
-                .clk(clk),
-                .rst_n(rst_n),
+                    .done(done)
+                );
+            end else begin: conv_pe
+                conv_pe #(
+                    .PIX_WIDTH(PIX_WIDTH),
+                    .LINE_WIDTH(SEG_WIDTH),
+                    .CHUNK_WIDTH(CHUNK_WIDTH),
+                    .NOC_X(NOC_X),
+                    .NOC_Y(NOC_Y),
+                    .NOC_ADDR_X(x),
+                    .NOC_ADDR_Y(y),
+                    .NOC_REASSEMBLER_ADDR_X(0),
+                    .NOC_REASSEMBLER_ADDR_Y(0),
+                    .TYPE_WIDTH(TYPE_WIDTH),
+                    .TYPE_IMG(TYPE_IMG),
+                    .TYPE_KERN(TYPE_KERN),
+                    .KERN_X(KERN_X),
+                    .KERN_Y(KERN_Y),
+                    .KERN_FRAC_BITS(KERN_FRAC_BITS)
+                ) ConvPE (
+                    .clk(clk),
+                    .rst_n(rst_n),
 
-                .noc_in_data(noc_in_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-                .noc_in_valid(noc_in_valids[x+NOC_X*y]),
-    			.noc_in_ready(noc_in_readies[x+NOC_X*y]),
+                    .noc_in_data(noc_in_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
+                    .noc_in_valid(noc_in_valids[x+NOC_X*y]),
+                    .noc_in_ready(noc_in_readies[x+NOC_X*y]),
 
-    			.noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
-    			.noc_out_valid(noc_out_valids[x+NOC_X*y]),
-    			.noc_out_ready(noc_out_readies[x+NOC_X*y])
-            );
+                    .noc_out_data(noc_out_datas[(NOC_BIT_WIDTH*x)+(NOC_BIT_WIDTH*NOC_X*y)+:NOC_BIT_WIDTH]),
+                    .noc_out_valid(noc_out_valids[x+NOC_X*y]),
+                    .noc_out_ready(noc_out_readies[x+NOC_X*y])
+                );
+            end
         end
     end
-end
 endgenerate
 
 endmodule

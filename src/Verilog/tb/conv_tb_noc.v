@@ -1,12 +1,30 @@
 `timescale 1ns / 1ps
 
 `define BMP_HEADER_SIZE 1078
-// `define BMP_HEADER_SIZE 13
+//`define BMP_HEADER_SIZE 13
 `define IMG_WIDTH 512
 `define IMG_HEIGHT 512
+//`define IMG_WIDTH 64
+//`define IMG_HEIGHT 64
 `define PIX_WIDTH 8
+
+`define NOC_X 2
+`define NOC_Y 2
 `define SEG_CNT_X 2
 `define SEG_CNT_Y 2
+//`define CHUNK_WIDTH 6
+`define CHUNK_WIDTH 13
+
+`define DMA_DATA_WIDTH 32
+
+`define KERN_X 3
+`define KERN_Y 3
+`define KERN_FRAC_BITS 6
+`define KERN {9{8'h07}}
+
+`define TYPE_WIDTH 1
+`define TYPE_IMG 1'b1
+`define TYPE_KERN 1'b0
 
 module conv_tb_noc();
 
@@ -21,7 +39,7 @@ integer i, j, idx;
 
 // Image buffers
 localparam BYTES_PER_LINE = (`IMG_WIDTH/`SEG_CNT_X) * `PIX_WIDTH / 8;
-localparam DMA_BEATS_PER_LINE = BYTES_PER_LINE / 4; // 32-bit DMA bus
+localparam DMA_BEATS_PER_LINE = BYTES_PER_LINE / (`DMA_DATA_WIDTH/8); // 32-bit DMA bus
 localparam TOTAL_LINES = `IMG_HEIGHT * `SEG_CNT_X;
 
 reg [7:0] img_in_mem [0:TOTAL_LINES-1][0:BYTES_PER_LINE-1];
@@ -47,7 +65,25 @@ wire [$clog2(TOTAL_LINES)-1:0] img_line_out_idx;
 wire done;
 
 // Instantiate noc_top
-noc_top DUT (
+noc_top
+#(
+    .PIX_WIDTH(`PIX_WIDTH),
+    .NOC_X(`NOC_X),
+    .NOC_Y(`NOC_Y),
+    .IMG_WIDTH(`IMG_WIDTH),
+    .IMG_HEIGHT(`IMG_HEIGHT),
+    .CHUNK_WIDTH(`CHUNK_WIDTH),
+    .SEG_CNT_X(`SEG_CNT_X),
+    .SEG_CNT_Y(`SEG_CNT_Y),
+    .TYPE_WIDTH(`TYPE_WIDTH),
+    .TYPE_IMG(`TYPE_IMG),
+    .TYPE_KERN(`TYPE_KERN),
+    .KERN_X(`KERN_X),
+    .KERN_Y(`KERN_Y),
+    .KERN(`KERN),
+    .KERN_FRAC_BITS(`KERN_FRAC_BITS),
+    .DMA_DATA_WIDTH(`DMA_DATA_WIDTH)
+) DUT (
     .rst_n(rst_n),
     .clk(clk),
 
@@ -133,7 +169,7 @@ reg s2mm_line_complete;
 always @(posedge clk) begin
     if (~rst_n) begin
         s2mm_axis_tready <= 1;
-        s2mm_beat_idx <= BYTES_PER_LINE-1;
+        s2mm_beat_idx <= 0;
         s2mm_line_complete <= 0;
     end else begin
         // Always ready to accept data
@@ -143,17 +179,17 @@ always @(posedge clk) begin
         // Capture data when valid
         if (s2mm_axis_tvalid && s2mm_axis_tready) begin
             // Store the 4 bytes from this beat
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[7:0];
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[15:8];
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[23:16];
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[31:24];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[7:0];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[15:8];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[23:16];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[31:24];
 
             if (s2mm_axis_tlast) begin
                 // End of line
-                s2mm_beat_idx <= BYTES_PER_LINE-1;
+                s2mm_beat_idx <= 0;
                 $display("[TB] S2MM: Received output line %d at time %t", img_line_out_idx, $time);
             end else begin
-                s2mm_beat_idx <= s2mm_beat_idx - 1;
+                s2mm_beat_idx <= s2mm_beat_idx + 1;
             end
         end
     end
@@ -170,14 +206,14 @@ initial begin
     // Load input image from file
     $display("[TB] Loading input image from peppers512.bmp...");
     input_file = $fopen("../../../data/peppers512.bmp", "rb");
-    // input_file = $fopen("../../../data/gray_64x64.pgm", "rb");
+    //input_file = $fopen("../../../data/gray_64x64.pgm", "rb");
     if (input_file == 0) begin
         $display("[TB] ERROR: Could not open input file ../../../data/peppers512.bmp");
         $finish;
     end
 
     output_file = $fopen("../../../data/outputPeppers.bmp", "wb");
-    // output_file = $fopen("../../../data/out_gray_64x64.pgm", "wb");
+    //output_file = $fopen("../../../data/out_gray_64x64.pgm", "wb");
     if (output_file == 0) begin
         $display("[TB] ERROR: Could not open output file");
         $finish;

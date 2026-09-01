@@ -7,8 +7,6 @@ module switch
 #(
     parameter x_coord = 'd0,
     parameter y_coord = 'd0,
-    parameter X = 2,
-    parameter Y = 2,
     parameter data_width = 32,
     parameter x_size = 1,
     parameter y_size = 1,
@@ -94,17 +92,18 @@ wire route_pe_to_t =
     (peToPe & ~i_ready_pe & bottomToRight) |
     (peToPe & ~i_ready_pe & leftToRight);
 
-always @(*) begin
-	//If there are no packets to either right or top, we can accept data from PE
-	//If packets have to be sent to both out ports, will have to back pressure the PE
-	if ((~leftToRight & ~leftToTop & ~leftToPe) | (~bottomToTop & ~bottomToRight & ~bottomToPe))
-		o_ready_pe = 1'b1;
-	else
-		o_ready_pe = 1'b0;
+always @(posedge clk) begin
+    if (~rstn) begin
+        o_ready_pe <= 0;
+    end else begin
+        //If there are no packets to either right or top, we can accept data from PE
+        //If packets have to be sent to both out ports, will have to back pressure the PE
+        o_ready_pe <= (~leftToRight & ~leftToTop & ~leftToPe) | (~bottomToTop & ~bottomToRight & ~bottomToPe);
+    end
 end
 
 always @(posedge clk) begin
-	if(!rstn) begin
+	if (~rstn) begin
 		o_valid_r <=1'b0;
 		o_data_r <= {total_width{1'b0}};
 	end else begin
@@ -123,7 +122,7 @@ end
 
 
 always @(posedge clk) begin
-	if(!rstn) begin
+	if (~rstn) begin
 		o_valid_t <= 1'b0;
 		o_data_t <= {total_width{1'b0}};
 	end else begin
@@ -140,30 +139,27 @@ always @(posedge clk) begin
 	end
 end
 
-always @(posedge clk)
-begin
-	if(!rstn)
+always @(posedge clk) begin
+    if (~rstn) begin
 		o_valid_pe <= 1'b0;
-
-	else if(peToPe & i_ready_pe)
-	begin
-		o_data_pe <= i_data_pe;
-		o_valid_pe <=1'b1;
-	end
-	else if(bottomToPe & i_ready_pe)
-	begin
-		o_data_pe  <= i_data_b;
-		o_valid_pe <= 1'b1;
-	end
-	else if(leftToPe & i_ready_pe)
-	begin
-		o_data_pe <= i_data_l;
-		o_valid_pe <= 1'b1;
-	end
-	else if(o_valid_pe & ~i_ready_pe)
-		o_valid_pe <=1'b1;
-	else
-		o_valid_pe <=1'b0;
+    end else begin
+        if (peToPe & i_ready_pe) begin
+            o_data_pe <= i_data_pe;
+            o_valid_pe <= 1'b1;
+        end
+        else if (bottomToPe & i_ready_pe) begin
+            o_data_pe <= i_data_b;
+            o_valid_pe <= 1'b1;
+        end
+        else if (leftToPe & i_ready_pe) begin
+            o_data_pe <= i_data_l;
+            o_valid_pe <= 1'b1;
+        end
+        else if (o_valid_pe & ~i_ready_pe)
+            o_valid_pe <= 1'b1;
+        else
+            o_valid_pe <=1'b0;
+    end
 end
 
 endmodule

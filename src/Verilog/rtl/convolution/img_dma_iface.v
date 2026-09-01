@@ -34,9 +34,10 @@ module img_dma_iface
     output wire s2mm_axis_tlast
 );
 
+
+// DDR to dispatcher
 reg reading_line;
 
-// Orchestrator interface passthroughs
 assign mm2s_axis_tready = img_line_in_ready;
 assign dma_read_line_idx = img_line_in_idx;
 
@@ -69,12 +70,18 @@ always @ (posedge clk) begin
     end
 end
 
-// Reassembler interface passthroughs
+// Reassembler to DDR
+
+wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out_rev;
+word_rev #(.W_CNT(IMG_WIDTH/SEG_CNT_X), .W_WIDTH(PIX_WIDTH)) DmaTDataRev (
+    .data_in(img_line_out),
+    .data_out(img_line_out_rev)
+);
 
 reg [$clog2((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH)-1:0] shift_cnt;
-assign s2mm_axis_tdata = img_line_out[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH];
 assign s2mm_axis_tvalid = (shift_cnt < ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH) && img_line_out_valid;
 assign s2mm_axis_tlast = (shift_cnt == ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH - 1) && img_line_out_valid;
+assign s2mm_axis_tdata = img_line_out_rev[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH];
 assign img_line_out_ready = s2mm_axis_tlast;
 
 always @ (posedge clk) begin

@@ -38,7 +38,7 @@ for (x=0;x<X;x=x+1) begin:xs
    for (y=0; y<Y; y=y+1) begin:ys
       if(x==0 & y==0)
 	     begin: instnce
-		     switch #(.x_coord(x),.y_coord(y),.X(X),.Y(Y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
+		     switch #(.x_coord(x),.y_coord(y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
 			   nbyn_instance(
 			         .clk(clk), 
 			         .rstn(rstn),     
@@ -65,7 +65,7 @@ for (x=0;x<X;x=x+1) begin:xs
 
        else if(x!=0 & y==0)
 	     begin: instnce
-              switch #(.x_coord(x),.y_coord(y),.X(X),.Y(Y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
+              switch #(.x_coord(x),.y_coord(y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
 			     nbyn_instance(		  
 			         .clk(clk), 
 			         .rstn(rstn),     
@@ -91,7 +91,7 @@ for (x=0;x<X;x=x+1) begin:xs
 
       else if(x==0 & y!=0 )
 	     begin: instnce
-		     switch #(.x_coord(x),.y_coord(y),.X(X),.Y(Y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
+		     switch #(.x_coord(x),.y_coord(y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
 			    nbyn_instance(
 			         .clk(clk),   
 			         .rstn(rstn),   
@@ -118,7 +118,7 @@ for (x=0;x<X;x=x+1) begin:xs
 
       else if(x!=0 & y!=0)
 	     begin: instnce
-		     switch #(.x_coord(x),.y_coord(y),.X(X),.Y(Y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
+		     switch #(.x_coord(x),.y_coord(y),.data_width(data_width), .x_size(x_size), .y_size(y_size),.total_width(total_width))
 			    nbyn_instance(
 			         .clk(clk),
 			         .rstn(rstn),      
