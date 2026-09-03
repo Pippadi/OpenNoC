@@ -148,7 +148,7 @@ end
 
 // This could fail if chunks from the same PE but for different lines arrive at back-to-back cycles,
 // but that's highly unlikely.
-assign noc_in_ready = ~(state == OUTPUT && out_line_pe_x == pe_x_idx && out_line_pe_y == pe_y_idx);
+assign noc_in_ready = 1;
 
 assign out_line = buf_line_outs[out_line_pe_x][out_line_pe_y][(PADDING_X+1)*PIX_WIDTH +: PIX_WIDTH*(IMG_WIDTH/SEG_CNT_X)];
 

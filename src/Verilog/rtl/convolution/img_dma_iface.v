@@ -73,10 +73,17 @@ end
 // Reassembler to DDR
 
 wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out_rev;
-word_rev #(.W_CNT(IMG_WIDTH/SEG_CNT_X), .W_WIDTH(PIX_WIDTH)) DmaTDataRev (
+word_rev #(.W_CNT(IMG_WIDTH/(SEG_CNT_X*DMA_DATA_WIDTH/PIX_WIDTH)), .W_WIDTH(DMA_DATA_WIDTH)) DmaTDataRev (
     .data_in(img_line_out),
     .data_out(img_line_out_rev)
 );
+
+/*
+word_rev #(.W_CNT(DMA_DATA_WIDTH/PIX_WIDTH), .W_WIDTH(PIX_WIDTH)) DmaTDataByteRev (
+    .data_in(img_line_out_rev[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH]),
+    .data_out(s2mm_axis_tdata)
+);
+*/
 
 reg [$clog2((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH)-1:0] shift_cnt;
 assign s2mm_axis_tvalid = (shift_cnt < ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH) && img_line_out_valid;

@@ -44,7 +44,7 @@ module orchestrator
 
     // Lines are IMG_WIDTH/SEG_CNT_X pixels wide
     // Line index in the final image is img_line_out_idx / SEG_CNT_X
-    // Index within a line is img_line_out_idx % SEG_CNT_X
+    // Index within a line is img_line_out_idx % SEG_CNT_X,
     input wire img_line_out_ready,
     output wire [$clog2(IMG_HEIGHT*SEG_CNT_X)-1:0] img_line_out_idx,
     output wire [(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:0] img_line_out,
@@ -117,7 +117,6 @@ conv_dispatcher #(
     .noc_out_data(noc_out_data),
     .noc_out_valid(noc_out_valid),
 
-    // For testing
     .done()
 );
 
@@ -176,9 +175,10 @@ always @ (posedge clk) begin
             end
         end
     end else begin
-        if (disp_pe_set_busy && !(disp_pe_x == reas_pe_x && disp_pe_y == reas_pe_y && reas_inc_pe_seg_line))
+        if (disp_pe_set_busy)
             pe_busies[disp_pe_x][disp_pe_y] <= 1;
-        else if (reas_inc_pe_seg_line) begin
+
+        if (reas_inc_pe_seg_line && !(disp_pe_set_busy && disp_pe_x == reas_pe_x && disp_pe_y == reas_pe_y)) begin
             pe_busies[reas_pe_x][reas_pe_y] <= 0;
             pe_seg_line_map[reas_pe_x][reas_pe_y] <= (pe_seg_line_map[reas_pe_x][reas_pe_y] == SEG_HEIGHT-1) ? 0 : pe_seg_line_map[reas_pe_x][reas_pe_y] + 1;
         end
@@ -200,4 +200,20 @@ always @ (posedge clk) begin
 end
 assign done = lines_recvd == IMG_HEIGHT*SEG_CNT_X;
 
-endmodule
+/*
+table_mon_ila TableMonitorILA (
+    .clk(clk), // input wire clk
+
+    .probe0(pe_busies[0][1]), // input wire [0:0]  probe0
+    .probe1(pe_busies[1][0]), // input wire [0:0]  probe1
+    .probe2(pe_busies[1][1]), // input wire [0:0]  probe2
+    .probe3(pe_seg_line_map[0][1]), // input wire [6:0]  probe3
+    .probe4(pe_seg_line_map[1][0]), // input wire [6:0]  probe4
+    .probe5(pe_seg_line_map[1][1]), // input wire [6:0]  probe5
+    .probe6(pe_seg_map[0][1]),
+    .probe7(pe_seg_map[1][0]),
+    .probe8(pe_seg_map[1][1])
+);
+*/
+
+   endmodule

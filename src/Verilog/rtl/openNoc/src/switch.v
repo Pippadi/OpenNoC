@@ -92,14 +92,12 @@ wire route_pe_to_t =
     (peToPe & ~i_ready_pe & bottomToRight) |
     (peToPe & ~i_ready_pe & leftToRight);
 
-always @(posedge clk) begin
-    if (~rstn) begin
-        o_ready_pe <= 0;
-    end else begin
+always @(*) begin
         //If there are no packets to either right or top, we can accept data from PE
         //If packets have to be sent to both out ports, will have to back pressure the PE
-        o_ready_pe <= (~leftToRight & ~leftToTop & ~leftToPe) | (~bottomToTop & ~bottomToRight & ~bottomToPe);
-    end
+        o_ready_pe = ~((leftToTop | leftToRight) & (bottomToRight | bottomToTop));
+        if (o_ready_pe == 0)
+            $display("Backpressured PE");
 end
 
 always @(posedge clk) begin
