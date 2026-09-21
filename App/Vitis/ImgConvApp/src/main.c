@@ -21,7 +21,7 @@
 volatile int read_flag = 0;
 volatile int write_flag = 0;
 
-__attribute__((aligned(32))) static u8 dma_op_buffer[IMAGE_LEN];
+__attribute__((aligned(64))) static u8 dma_op_buffer[IMAGE_LEN];
 
 void dma_read_isr(void*) {
     read_flag = 1;
@@ -100,6 +100,7 @@ int main() {
 
     //Xil_DCacheFlushRange((u64) image, IMAGE_LEN);
     Xil_DCacheFlushRange((u64) dma_op_buffer, IMAGE_LEN);
+    //Xil_DCacheDisable();
 
     xil_printf("Header copying and flushing done, resetting PL...\r\n");
     XGpio_DiscreteClear(&idx_gpio, 2, 0xFFFFFFFF); // Apply rst_n
@@ -142,7 +143,7 @@ int main() {
             }
 
             while (XAxiDma_Busy(&myDma, XAXIDMA_DEVICE_TO_DMA));
-            Xil_DCacheInvalidateRange((u64) dma_op_buffer, IMAGE_LEN);
+            Xil_DCacheInvalidateRange((u64) addr, SEG_W_NOPAD);
             write_flag = 0;
         }
     }

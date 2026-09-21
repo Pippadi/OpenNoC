@@ -4,6 +4,7 @@ shopt -s globstar
 
 verilator -cc \
     conv_tb_noc.v \
+    ../rtl/convolution/utils/*.v \
     ../rtl/convolution/conv_unit/*.v \
     ../rtl/convolution/noc_pe/*.v \
     ../rtl/convolution/noc_orchestrator/*.v \
