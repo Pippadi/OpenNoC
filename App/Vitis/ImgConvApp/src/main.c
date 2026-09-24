@@ -4,6 +4,7 @@
 #include "xparameters.h"
 #include "image.h"
 #include "sleep.h"
+#include "xil_mmu.h"
 
 #define DONE_BIT_LOC 20
 #define IDX_WIDTH 10
@@ -21,7 +22,7 @@
 volatile int read_flag = 0;
 volatile int write_flag = 0;
 
-__attribute__((aligned(64))) static u8 dma_op_buffer[IMAGE_LEN];
+__attribute__((aligned(32))) volatile u8 dma_op_buffer[IMAGE_LEN];
 
 void dma_read_isr(void*) {
     read_flag = 1;
@@ -32,6 +33,10 @@ void dma_write_isr(void*) {
 }
 
 int main() {
+    //Xil_DCacheDisable();
+
+    //Xil_SetTlbAttributes((UINTPTR) image, NORM_NONCACHE);
+
     XAxiDma_Config *myDmaConfig;
     XAxiDma myDma;
     XGpio idx_gpio;
@@ -99,8 +104,7 @@ int main() {
 
 
     //Xil_DCacheFlushRange((u64) image, IMAGE_LEN);
-    Xil_DCacheFlushRange((u64) dma_op_buffer, IMAGE_LEN);
-    //Xil_DCacheDisable();
+    //Xil_DCacheFlushRange((u64) dma_op_buffer, IMAGE_LEN);
 
     xil_printf("Header copying and flushing done, resetting PL...\r\n");
     XGpio_DiscreteClear(&idx_gpio, 2, 0xFFFFFFFF); // Apply rst_n
@@ -119,15 +123,17 @@ int main() {
 
         if (read_flag) {
             read_idx = idx_gpio_in & IDX_MASK;
-            UINTPTR addr = (UINTPTR) (image + (read_idx*SEG_W_NOPAD));
+            UINTPTR addr = (UINTPTR) (image + (read_idx*SEG_W_NOPAD*PIX_WIDTH));
             xil_printf("Seg line 0x%X requested\r\n", read_idx);
-            status = XAxiDma_SimpleTransfer(&myDma, addr, SEG_W_NOPAD, XAXIDMA_DMA_TO_DEVICE);
+            Xil_DCacheFlushRange((u64) addr, SEG_W_NOPAD*PIX_WIDTH);
+            status = XAxiDma_SimpleTransfer(&myDma, addr, SEG_W_NOPAD*PIX_WIDTH, XAXIDMA_DMA_TO_DEVICE);
             if (status != XST_SUCCESS) {
                 xil_printf("DMA read failed with code %d\r\n", status);
                 return -1;
             }
 
             while (XAxiDma_Busy(&myDma, XAXIDMA_DMA_TO_DEVICE));
+            Xil_DCacheFlushRange((u64) image, IMAGE_LEN);
             xil_printf("Line sent\r\n");
             read_flag = 0;
         }
@@ -135,15 +141,16 @@ int main() {
         if (write_flag) {
             write_idx = (idx_gpio_in >> IDX_WIDTH) & IDX_MASK;
             xil_printf("Seg line 0x%X written\r\n", write_idx);
-            UINTPTR addr = (UINTPTR) (dma_op_buffer + (write_idx*SEG_W_NOPAD));
-            status = XAxiDma_SimpleTransfer(&myDma, addr, SEG_W_NOPAD, XAXIDMA_DEVICE_TO_DMA);
+            UINTPTR addr = (UINTPTR) (dma_op_buffer + (write_idx*SEG_W_NOPAD*PIX_WIDTH));
+            Xil_DCacheInvalidateRange((u64) addr, SEG_W_NOPAD * PIX_WIDTH);
+            status = XAxiDma_SimpleTransfer(&myDma, addr, SEG_W_NOPAD*PIX_WIDTH, XAXIDMA_DEVICE_TO_DMA);
             if (status != XST_SUCCESS) {
                 xil_printf("DMA write failed with code %d\r\n", status);
                 return -1;
             }
 
             while (XAxiDma_Busy(&myDma, XAXIDMA_DEVICE_TO_DMA));
-            Xil_DCacheInvalidateRange((u64) addr, SEG_W_NOPAD);
+            Xil_DCacheInvalidateRange((u64) addr, SEG_W_NOPAD * PIX_WIDTH);
             write_flag = 0;
         }
     }
