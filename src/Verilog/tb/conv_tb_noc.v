@@ -56,6 +56,7 @@ wire [31:0] s2mm_axis_tdata;
 wire s2mm_axis_tvalid;
 reg s2mm_axis_tready;
 wire s2mm_axis_tlast;
+wire [`DMA_DATA_WIDTH/8-1:0] s2mm_axis_tkeep;
 
 // Control signals from noc_top
 wire dma_read_ready;
@@ -96,6 +97,7 @@ noc_top
     .s2mm_axis_tvalid(s2mm_axis_tvalid),
     .s2mm_axis_tready(s2mm_axis_tready),
     .s2mm_axis_tlast(s2mm_axis_tlast),
+    .s2mm_axis_tkeep(s2mm_axis_tkeep),
 
     .dma_read_ready(dma_read_ready),
     .dma_read_line_idx(dma_read_line_idx),
