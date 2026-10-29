@@ -16,25 +16,28 @@ module axis_to_bram_sniff
     input s_axis_tready,
     input [DATA_WIDTH-1:0] s_axis_tdata,
 
-    output wire we,
-    output wire [DATA_WIDTH-1:0] w_data,
-    output wire [$clog2(IMG_WIDTH*IMG_HEIGHT/(DATA_WIDTH/8))-1:0] w_addr
+    output reg we,
+    output reg [DATA_WIDTH-1:0] w_data,
+    output reg [$clog2(IMG_WIDTH*IMG_HEIGHT/(DATA_WIDTH/8))-1:0] w_addr
 );
 
 localparam SEG_WIDTH_NOPAD = IMG_WIDTH / SEG_CNT_X;
+localparam WORD_CNT_PER_LINE = SEG_WIDTH_NOPAD/(DATA_WIDTH/PIX_WIDTH);
 
-assign we = s_axis_tready & s_axis_tvalid;
-
-reg [$clog2(SEG_WIDTH_NOPAD)-1:0] pix_cnt;
-assign w_addr = (line_no << $clog2(SEG_WIDTH_NOPAD)) | pix_cnt; // only works if SEG_WIDTH_NOPAD is a power of 2, good enough for now
+reg [$clog2(WORD_CNT_PER_LINE)-1:0] word_cnt;
 
 always @(posedge clk) begin
     if (~rst_n) begin
-        pix_cnt <= 0;
+        word_cnt <= 0;
+        we <= 0;
     end else begin
-        if (we) begin
-            pix_cnt <= (pix_cnt == SEG_WIDTH_NOPAD-1) ? 0 : pix_cnt + 1;
-        end
+        if (s_axis_tvalid & s_axis_tready) begin
+            we <= 1;
+            word_cnt <= (word_cnt == WORD_CNT_PER_LINE-1) ? 0 : word_cnt + 1;
+            w_addr <= (line_no << $clog2(WORD_CNT_PER_LINE)) | word_cnt; // only works if WORD_CNT_PER_LINE is a power of 2, good enough for now
+            w_data <= s_axis_tdata;
+        end else
+            we <= 0;
     end
 end
 

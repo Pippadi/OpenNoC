@@ -1926,12 +1926,18 @@
             "value": "3"
           },
           "C_NUM_OF_PROBES": {
-            "value": "3"
+            "value": "5"
           },
           "C_PROBE0_TYPE": {
             "value": "0"
           },
           "C_PROBE1_TYPE": {
+            "value": "0"
+          },
+          "C_PROBE3_TYPE": {
+            "value": "0"
+          },
+          "C_PROBE4_TYPE": {
             "value": "0"
           },
           "C_SLOT_0_APC_EN": {
@@ -2979,14 +2985,32 @@
       "axis_to_bram_sniff_0_w_addr": {
         "ports": [
           "axis_to_bram_sniff_0/w_addr",
-          "axi_bram_ctrl_0_bram/addra"
-        ]
+          "axi_bram_ctrl_0_bram/addra",
+          "system_ila_0/probe3"
+        ],
+        "hdl_attributes": {
+          "DEBUG": {
+            "value": "true"
+          },
+          "MARK_DEBUG": {
+            "value": "true"
+          }
+        }
       },
       "axis_to_bram_sniff_0_w_data": {
         "ports": [
           "axis_to_bram_sniff_0/w_data",
-          "axi_bram_ctrl_0_bram/dina"
-        ]
+          "axi_bram_ctrl_0_bram/dina",
+          "system_ila_0/probe4"
+        ],
+        "hdl_attributes": {
+          "DEBUG": {
+            "value": "true"
+          },
+          "MARK_DEBUG": {
+            "value": "true"
+          }
+        }
       },
       "axis_to_bram_sniff_0_we": {
         "ports": [
@@ -3083,8 +3107,8 @@
           "axi_mem_intercon/S01_ACLK",
           "axi_bram_ctrl_0/s_axi_aclk",
           "ps7_0_axi_periph/M02_ACLK",
-          "axis_to_bram_sniff_0/clk",
-          "axi_bram_ctrl_0_bram/clka"
+          "axi_bram_ctrl_0_bram/clka",
+          "axis_to_bram_sniff_0/clk"
         ]
       },
       "processing_system7_0_FCLK_RESET0_N": {

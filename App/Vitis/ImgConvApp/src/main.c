@@ -5,6 +5,7 @@
 #include "image.h"
 #include "sleep.h"
 #include "xil_mmu.h"
+#include "xbram.h"
 
 #define DONE_BIT_LOC 20
 #define IDX_WIDTH 10
@@ -23,6 +24,7 @@ volatile int read_flag = 0;
 volatile int write_flag = 0;
 
 __attribute__((aligned(32))) volatile u8 dma_op_buffer[IMAGE_LEN];
+__attribute__((aligned(32))) volatile u32 bram_op_buffer[IMAGE_LEN/sizeof(u32)];
 
 void dma_read_isr(void*) {
     read_flag = 1;
@@ -155,5 +157,13 @@ int main() {
         }
     }
 
-    xil_printf("Done!\r\n");
+    xil_printf("Processing done! Reading from BRAM...\r\n");
+
+    for (u32 i = 0; i < IMAGE_LEN/sizeof(u32); i++) {
+        // Read word from BRAM over AXI
+        bram_op_buffer[i] = Xil_In32(XPAR_XBRAM_0_BASEADDR + (i * sizeof(u32)));
+        //xil_printf("Read word %u\r\n", i);
+    }
+
+    xil_printf("Transfer complete! %u words copied to DDR\r\n", IMAGE_LEN/sizeof(u32));
 }

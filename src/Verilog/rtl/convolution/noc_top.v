@@ -43,6 +43,7 @@ module noc_top
     input  wire mm2s_axis_tlast,
 
     output wire [DMA_DATA_WIDTH-1:0] s2mm_axis_tdata,
+    output wire [DMA_DATA_WIDTH/8-1:0] s2mm_axis_tkeep,
     output wire s2mm_axis_tvalid,
     input  wire s2mm_axis_tready,
     output wire s2mm_axis_tlast,
@@ -163,6 +164,7 @@ img_dma_iface #(
     .mm2s_axis_tlast(mm2s_axis_tlast),
 
     .s2mm_axis_tdata(s2mm_axis_tdata),
+    .s2mm_axis_tkeep(s2mm_axis_tkeep),
     .s2mm_axis_tvalid(s2mm_axis_tvalid),
     .s2mm_axis_tready(s2mm_axis_tready),
     .s2mm_axis_tlast(s2mm_axis_tlast),

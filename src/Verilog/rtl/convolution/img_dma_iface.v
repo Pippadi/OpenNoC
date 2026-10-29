@@ -29,6 +29,7 @@ module img_dma_iface
     input  wire mm2s_axis_tlast,
 
     output wire [DMA_DATA_WIDTH-1:0] s2mm_axis_tdata,
+    output wire [DMA_DATA_WIDTH/8-1:0] s2mm_axis_tkeep,
     output wire s2mm_axis_tvalid,
     input  wire s2mm_axis_tready,
     output wire s2mm_axis_tlast
@@ -56,7 +57,7 @@ always @ (posedge clk) begin
         if (reading_line) begin
             if (mm2s_axis_tvalid && mm2s_axis_tready) begin
                 // Shift in the incoming data into img_line_in
-                img_line_in <= {img_line_in[(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH - DMA_DATA_WIDTH - 1:0], mm2s_axis_tdata};
+                img_line_in <= {mm2s_axis_tdata, img_line_in[(IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH-1:DMA_DATA_WIDTH]};
                 // If this is the last beat of the segment, assert valid
                 img_line_in_valid <= mm2s_axis_tlast;
                 dma_read_ready <= ~mm2s_axis_tlast;
@@ -78,22 +79,25 @@ word_rev #(.W_CNT(IMG_WIDTH/SEG_CNT_X), .W_WIDTH(PIX_WIDTH)) DmaTDataRev (
     .data_out(img_line_out_rev)
 );
 
+/*
 word_rev #(.W_CNT(DMA_DATA_WIDTH/PIX_WIDTH), .W_WIDTH(PIX_WIDTH)) DmaTDataByteRev (
     .data_in(img_line_out_rev[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH]),
     .data_out(s2mm_axis_tdata)
 );
+*/
 
 reg [$clog2((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH)-1:0] shift_cnt;
 assign s2mm_axis_tvalid = (shift_cnt < ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH) && img_line_out_valid;
 assign s2mm_axis_tlast = (shift_cnt == ((IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH)/DMA_DATA_WIDTH - 1) && img_line_out_valid;
-//assign s2mm_axis_tdata = img_line_out_rev[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH];
+assign s2mm_axis_tdata = img_line_out[shift_cnt*DMA_DATA_WIDTH +: DMA_DATA_WIDTH];
 assign img_line_out_ready = s2mm_axis_tlast;
+assign s2mm_axis_tkeep = {(DMA_DATA_WIDTH/8){1'b1}};
 
 always @ (posedge clk) begin
     if (~rst_n | ~img_line_out_valid) begin
         shift_cnt <= 0;
     end else begin
-        if (shift_cnt < (IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH && s2mm_axis_tready) begin
+        if (shift_cnt < (IMG_WIDTH/SEG_CNT_X)*PIX_WIDTH/DMA_DATA_WIDTH && s2mm_axis_tready && s2mm_axis_tvalid) begin
             shift_cnt <= shift_cnt + 1;
         end
     end

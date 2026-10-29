@@ -152,10 +152,10 @@ always @(posedge clk) begin
             end else begin
                 mm2s_axis_tvalid <= 1;
                 mm2s_axis_tlast <= (mm2s_beat_idx == DMA_BEATS_PER_LINE - 1);
-                mm2s_axis_tdata <= {img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+0],
-                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+1],
+                mm2s_axis_tdata <= {img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+3],
                     img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+2],
-                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+3]};
+                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+1],
+                    img_in_mem[mm2s_line_idx][(mm2s_beat_idx)*4+0]};
             end
         end
     end
@@ -181,10 +181,10 @@ always @(posedge clk) begin
         // Capture data when valid
         if (s2mm_axis_tvalid && s2mm_axis_tready) begin
             // Store the 4 bytes from this beat
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[7:0];
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[15:8];
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[23:16];
-            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[31:24];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 0] <= s2mm_axis_tdata[7:0];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 1] <= s2mm_axis_tdata[15:8];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 2] <= s2mm_axis_tdata[23:16];
+            img_out_mem[img_line_out_idx][s2mm_beat_idx*4 + 3] <= s2mm_axis_tdata[31:24];
 
             if (s2mm_axis_tlast) begin
                 // End of line
